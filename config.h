@@ -1,20 +1,20 @@
 /* See LICENSE file for copyright and license details. */
 
 /* appearance */
-static const char font[]            = "-*-terminus-medium-r-*-*-16-*-*-*-*-*-*-*";
-static const char normbordercolor[] = "#444444";
-static const char normbgcolor[]     = "#222222";
-static const char normfgcolor[]     = "#bbbbbb";
-static const char selbordercolor[]  = "#005577";
-static const char selbgcolor[]      = "#005577";
-static const char selfgcolor[]      = "#eeeeee";
-static const unsigned int borderpx  = 1;        /* border pixel of windows */
-static const unsigned int snap      = 32;       /* snap pixel */
-static const unsigned int systrayspacing = 2;   /* systray spacing */
-static const Bool showsystray       = True;     /* False means no systray */
-static const Bool showbar           = True;     /* False means no bar */
-static const Bool topbar            = True;     /* False means bottom bar */
-static const Bool bottombar         = True;     /* True means an extra bar at the bottom */
+static const char font[]		= "-*-courier-medium-r-*-*-12-*-*-*-*-*-*-*";
+static const char normbordercolor[]	= "#444444";
+static const char normbgcolor[]		= "#222222";
+static const char normfgcolor[]		= "#bbbbbb";
+static const char selbordercolor[]	= "#005577";
+static const char selbgcolor[]		= "#005577";
+static const char selfgcolor[]		= "#eeeeee";
+static const unsigned int borderpx	= 1;        /* border pixel of windows */
+static const unsigned int snap		= 32;       /* snap pixel */
+static const unsigned int systrayspacing= 2;   /* systray spacing */
+static const Bool showsystray		= True;     /* False means no systray */
+static const Bool showbar		= True;     /* False means no bar */
+static const Bool topbar		= True;     /* False means bottom bar */
+static const Bool bottombar		= False;     /* True means an extra bar at the bottom */
 
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
@@ -22,7 +22,7 @@ static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	{ "Gimp",     NULL,       NULL,       0,            True,        -1 },
-	{ "Firefox",  NULL,       NULL,       1 << 8,       False,       -1 },
+	{ "Firefox",  NULL,       NULL,       1,       False,       0 },
 };
 
 /* layout(s) */
@@ -32,25 +32,25 @@ static const Bool resizehints = True; /* True means respect size hints in tiled 
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },    /* first entry is default */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
+	{ "[T]",      tile },    /* first entry is default */
+	{ "[F]",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
 };
 
 /* key definitions */
 #define MODKEY Mod1Mask
 #define TAGKEYS(KEY,TAG) \
-	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
-	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
+	{ MODKEY,			KEY,	view,           {.ui = 1 << TAG} }, \
+	{ MODKEY|ControlMask,		KEY,	toggleview,     {.ui = 1 << TAG} }, \
+	{ MODKEY|ShiftMask,		KEY,	tag,            {.ui = 1 << TAG} }, \
+	{ MODKEY|ControlMask|ShiftMask,	KEY,	toggletag,      {.ui = 1 << TAG} },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *dmenucmd[] = { "dmenu_run", "-fn", font, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL };
-static const char *termcmd[]  = { "uxterm", NULL };
+static const char *dmenucmd[]	= { "dmenu_run", "-fn", font, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL };
+static const char *termcmd[]	= { "uxterm", NULL };
 
 static Key keys[] = {
 	/* modifier                     key        function        argument */
