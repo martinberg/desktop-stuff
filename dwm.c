@@ -2291,7 +2291,7 @@ updatetitle(Client *c) {
 
 void
 updatestatus(void) {
-	char buftext[512];
+	char buftext[STATUS_BUF_LEN];
 	if(!gettextprop(root, XA_WM_NAME, buftext, sizeof(buftext)))
 		strcpy(stext, "dwm-"VERSION);
 	else {
