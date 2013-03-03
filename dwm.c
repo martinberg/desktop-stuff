@@ -149,6 +149,7 @@ struct Monitor {
 	int nmaster;
 	int num;
 	int by;               /* bar geometry */
+	int bby;	      /* bottom bar geometry */
 	int mx, my, mw, mh;   /* screen size */
 	int wx, wy, ww, wh;   /* window area  */
 	unsigned int seltags;
@@ -156,11 +157,14 @@ struct Monitor {
 	unsigned int tagset[2];
 	Bool showbar;
 	Bool topbar;
+	Bool showbottombar;
+	Bool bottombar;
 	Client *clients;
 	Client *sel;
 	Client *stack;
 	Monitor *next;
 	Window barwin;
+	Window bbarwin;
 	const Layout *lt[2];
 	Pertag *pertag;
 };
@@ -263,6 +267,7 @@ static void tagmon(const Arg *arg);
 static int textnw(const char *text, unsigned int len);
 static void tile(Monitor *);
 static void togglebar(const Arg *arg);
+static void togglebottombar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
@@ -295,6 +300,7 @@ static Systray *systray = NULL;
 static unsigned long systrayorientation = _NET_SYSTEM_TRAY_ORIENTATION_HORZ;
 static const char broken[] = "broken";
 static char stext[256];
+static char btext[256];
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 static int bh, blw = 0;      /* bar geometry */
@@ -564,6 +570,8 @@ cleanupmon(Monitor *mon) {
 	}
 	XUnmapWindow(dpy, mon->barwin);
 	XDestroyWindow(dpy, mon->barwin);
+	XUnmapWindow(dpy, mon->bbarwin);
+	XDestroyWindow(dpy, mon->bbarwin);
 	free(mon);
 }
 
@@ -673,8 +681,10 @@ configurenotify(XEvent *e) {
 				XFreePixmap(dpy, dc.drawable);
 			dc.drawable = XCreatePixmap(dpy, root, sw, bh, DefaultDepth(dpy, screen));
 			updatebars();
-			for(m = mons; m; m = m->next)
+			for(m = mons; m; m = m->next) {
 				resizebarwin(m);
+				XMoveResizeWindow(dpy, m->bbarwin, m->wx, m->bby, m->ww, bh);
+			}
 			focus(NULL);
 			arrange(NULL);
 		}
@@ -746,6 +756,8 @@ createmon(void) {
 	m->nmaster = nmaster;
 	m->showbar = showbar;
 	m->topbar = topbar;
+	m->bottombar = bottombar;
+	m->showbottombar = bottombar ? True : False;
 	m->lt[0] = &layouts[0];
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
@@ -881,6 +893,15 @@ drawbar(Monitor *m) {
 			drawtext(NULL, dc.norm, False);
 	}
 	XCopyArea(dpy, dc.drawable, m->barwin, dc.gc, 0, 0, m->ww, bh, 0, 0);
+	if(m->showbottombar) {
+		dc.x = 0;
+		dc.w = TEXTW(btext);
+		drawtext(btext, dc.norm, False);
+		dc.x += dc.w;
+		dc.w = m->ww - dc.x;
+		drawtext(NULL, dc.norm, False);
+		XCopyArea(dpy, dc.drawable, m->bbarwin, dc.gc, 0, 0, m->ww, bh, 0, 0);
+	}
 	XSync(dpy, False);
 }
 
@@ -1928,6 +1949,14 @@ togglebar(const Arg *arg) {
 }
 
 void
+togglebottombar(const Arg *arg) {
+    selmon->showbottombar = !selmon->showbottombar;
+    updatebarpos(selmon);
+    XMoveResizeWindow(dpy, selmon->bbarwin, selmon->wx, selmon->bby, selmon->ww, bh);
+    arrange(selmon);
+}
+
+void
 togglefloating(const Arg *arg) {
 	if(!selmon->sel)
 		return;
@@ -2054,6 +2083,13 @@ updatebars(void) {
 		                          CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]);
 		XMapRaised(dpy, m->barwin);
+		if (m->bottombar) {
+			m->bbarwin = XCreateWindow(dpy, root, m->wx, m->bby, m->ww, bh, 0, DefaultDepth(dpy, screen),
+						   CopyFromParent, DefaultVisual(dpy, screen),
+						   CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
+			XDefineCursor(dpy, m->bbarwin, cursor[CurNormal]);
+			XMapRaised(dpy, m->bbarwin);
+		}
 	}
 }
 
@@ -2068,6 +2104,12 @@ updatebarpos(Monitor *m) {
 	}
 	else
 		m->by = -bh;
+	if (m->showbottombar) {
+		m->wh -= bh;
+		m->bby = m->wy + m->wh;
+	}
+	else
+		m->bby = -bh;
 }
 
 Bool
@@ -2227,8 +2269,39 @@ updatetitle(Client *c) {
 
 void
 updatestatus(void) {
-	if(!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
+	char buftext[512];
+	if(!gettextprop(root, XA_WM_NAME, buftext, sizeof(buftext)))
 		strcpy(stext, "dwm-"VERSION);
+	else {
+		char* blocation = strstr(buftext,"BOTTOM=");
+		if (blocation != NULL) {
+			int c = 0;
+			for (char* i = buftext; i < blocation; i++) {
+				if (c < sizeof(stext) - 1)
+					stext[c] = *i;
+				else
+					break;
+				c++;
+			}
+			stext[c] = '\0';
+			blocation += 7;
+			c = 0;
+			for (char* i = blocation; i < (blocation + sizeof(buftext)); i++)
+			{
+				if (c < sizeof(btext) - 1)
+					btext[c] = *i;
+				else
+					break;
+				c++;
+			}
+			btext[c] = '\0';
+		}
+		else {
+			for (int i = 0; i < sizeof(stext); i++)
+			stext[i] = buftext[i];
+			stext[sizeof(stext) - 1] = '\0';
+		}
+	}
 	drawbar(selmon);
 }
 
