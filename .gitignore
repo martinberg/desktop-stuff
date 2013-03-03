@@ -1,4 +1,5 @@
 *.o
 *.swp
 *.bak
+*.orig
 dwm
