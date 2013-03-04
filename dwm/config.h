@@ -2,12 +2,14 @@
 
 /* appearance */
 static const char font[]		= "-*-courier-medium-r-*-*-12-*-*-*-*-*-*-*";
-static const char normbordercolor[]	= "#444444";
-static const char normbgcolor[]		= "#222222";
+static const char normbordercolor[]	= "#3c3b37";
+static const char normbgcolor[]		= "#3c3b37";
 static const char normfgcolor[]		= "#bbbbbb";
 static const char selbordercolor[]	= "#005577";
 static const char selbgcolor[]		= "#005577";
 static const char selfgcolor[]		= "#eeeeee";
+static const char floatnormbordercolor[] = "#005577";
+static const char floatselbordercolor[]  = "#005577";
 static const unsigned int borderpx	= 1;        /* border pixel of windows */
 static const unsigned int snap		= 32;       /* snap pixel */
 static const unsigned int systrayspacing= 2;   /* systray spacing */
@@ -21,7 +23,7 @@ static const char *tags[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
 
 static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
-	{"Gimp",     NULL,       NULL,       0,            True,        -1},
+	/*{"Gimp",     NULL,       NULL,       0,            True,        -1},*/
 	{"Firefox",  NULL,       NULL,       1,       False,       1},
 	{"Audacious",  NULL,       NULL,       1<<8,       True,       0},
 };
