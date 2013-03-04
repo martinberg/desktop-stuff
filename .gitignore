@@ -3,4 +3,6 @@
 *.bak
 *.orig
 *.rej
-dwm
+dwm/dwm
+dmenu/dmenu
+dwmstatus/dwmstatus
