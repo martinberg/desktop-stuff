@@ -18,9 +18,7 @@ char *tzberlin = "Europe/Berlin";
 
 static Display *dpy;
 
-char *
-smprintf(char *fmt, ...)
-{
+char *smprintf(char *fmt, ...) {
 	va_list fmtargs;
 	char *ret;
 	int len;
@@ -42,15 +40,11 @@ smprintf(char *fmt, ...)
 	return ret;
 }
 
-void
-settz(char *tzname)
-{
+void settz(char *tzname) {
 	setenv("TZ", tzname, 1);
 }
 
-char *
-mktimes(char *fmt, char *tzname)
-{
+char *mktimes(char *fmt, char *tzname) {
 	char buf[129];
 	time_t tim;
 	struct tm *timtm;
@@ -72,16 +66,12 @@ mktimes(char *fmt, char *tzname)
 	return smprintf("%s", buf);
 }
 
-void
-setstatus(char *str)
-{
+void setstatus(char *str) {
 	XStoreName(dpy, DefaultRootWindow(dpy), str);
 	XSync(dpy, False);
 }
 
-char *
-loadavg(void)
-{
+char *loadavg(void) {
 	double avgs[3];
 
 	if (getloadavg(avgs, 3) < 0) {
@@ -92,9 +82,7 @@ loadavg(void)
 	return smprintf("%.2f %.2f %.2f", avgs[0], avgs[1], avgs[2]);
 }
 
-int
-main(void)
-{
+int main(void) {
 	char *status;
 	char *avgs;
 	char *tmar;
@@ -106,14 +94,13 @@ main(void)
 		return 1;
 	}
 
-	for (;;sleep(90)) {
+	for (;;sleep(3)) {
 		avgs = loadavg();
 		tmar = mktimes("%H:%M", tzargentina);
 		tmutc = mktimes("%H:%M", tzutc);
 		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzberlin);
 
-		status = smprintf("L:%s A:%s U:%s %s",
-				avgs, tmar, tmutc, tmbln);
+		status = smprintf("L:%s A:%s U:%s %s", avgs, tmar, tmutc, tmbln);
 		setstatus(status);
 		free(avgs);
 		free(tmar);
