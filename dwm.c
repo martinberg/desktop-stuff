@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -252,6 +253,7 @@ static void resizerequest(XEvent *e);
 static void restack(Monitor *m);
 static void run(void);
 static void scan(void);
+void self_restart(const Arg *arg);
 static Bool sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
@@ -2674,7 +2676,7 @@ drawcoloredtext(const char *text, XftColor fg, XftColor bg) {
 	if(!len)
 		return;
 	memcpy(buf, text, len);
-    
+	
 	XSetForeground(dpy, dc.gc, fg.pixel);
 	
 	//if(dc.font.set)
@@ -2689,355 +2691,355 @@ drawcoloredtext(const char *text, XftColor fg, XftColor bg) {
 
 struct 
 ansi_node * addnode(struct ansi_node *head, int type, char * color, char * text) {
-    struct ansi_node* tmp;
-    if (head == NULL) {
-        head=(struct ansi_node *)malloc(sizeof(struct ansi_node));
-        if (head == NULL) {
-        //    printf("you're out of memory, son\n");
-            exit(1);
-        }
-        head->next = head;
-        head->type = type;
-        head->color = color;
-        head->text = text; 
-    } else {
-        tmp = head;
-        while(tmp->next != head) 
-            tmp = tmp->next;
-        tmp->next = (struct ansi_node *)malloc(sizeof(struct ansi_node));
-        if (tmp->next == NULL) {
-         //   printf("you're out of memory, son\n");
-            exit(1);
-        }
-        tmp = tmp->next;
-        tmp->next = head;
-        tmp->type = type;
-        tmp->color = color;
-        tmp->text = text; 
-    }
-    return head;
+	struct ansi_node* tmp;
+	if (head == NULL) {
+		head=(struct ansi_node *)malloc(sizeof(struct ansi_node));
+		if (head == NULL) {
+		//    printf("you're out of memory, son\n");
+			exit(1);
+		}
+		head->next = head;
+		head->type = type;
+		head->color = color;
+		head->text = text; 
+	} else {
+		tmp = head;
+		while(tmp->next != head) 
+			tmp = tmp->next;
+		tmp->next = (struct ansi_node *)malloc(sizeof(struct ansi_node));
+		if (tmp->next == NULL) {
+		 //   printf("you're out of memory, son\n");
+			exit(1);
+		}
+		tmp = tmp->next;
+		tmp->next = head;
+		tmp->type = type;
+		tmp->color = color;
+		tmp->text = text; 
+	}
+	return head;
 }
 
 void 
 destroy_llist(struct ansi_node *head) {
-    struct ansi_node *current, *tmp;
-    current = head->next;
-    head->next = NULL;
-    while (current != NULL) {
-        tmp = current->next;
-        free(current);
-        current = tmp;
-    }
+	struct ansi_node *current, *tmp;
+	current = head->next;
+	head->next = NULL;
+	while (current != NULL) {
+		tmp = current->next;
+		free(current);
+		current = tmp;
+	}
 }
 
 void 
 drawstatus (Monitor *m) {
-    /*
-       this function makes 2 passes:
-        -chops status text into pieces based on esc codes
-        -puts esc codes & text blocks in a linked list
-        -goes back through and outputs those blocks one at a time
-            in the color specified by the preceding escape code 
-    */
-    char * startpos = stext;
-    char * curpos = stext;
-    char * escstartpos = stext;
-    int inescape = 0;
-    int esc_len, text_len;
-    char * textbuf;
-    char * escbuf;
-    char plaintextbuf[1024] = "\0";
-    char color[16];
-    char * color_ptr;
-    int curpos_ctr = 0;
-    int input_len = strlen(stext);
-    int plain_text_len = 0;
-    XftColor cur_fg = dc.norm[ColFG];
-    XftColor cur_bg = dc.norm[ColBG];
-    struct ansi_node *head = NULL;
-    int x, x_orig;
-    struct ansi_node *curn;
+	/*
+	   this function makes 2 passes:
+		-chops status text into pieces based on esc codes
+		-puts esc codes & text blocks in a linked list
+		-goes back through and outputs those blocks one at a time
+			in the color specified by the preceding escape code 
+	*/
+	char * startpos = stext;
+	char * curpos = stext;
+	char * escstartpos = stext;
+	int inescape = 0;
+	int esc_len, text_len;
+	char * textbuf;
+	char * escbuf;
+	char plaintextbuf[1024] = "\0";
+	char color[16];
+	char * color_ptr;
+	int curpos_ctr = 0;
+	int input_len = strlen(stext);
+	int plain_text_len = 0;
+	XftColor cur_fg = dc.norm[ColFG];
+	XftColor cur_bg = dc.norm[ColBG];
+	struct ansi_node *head = NULL;
+	int x, x_orig;
+	struct ansi_node *curn;
 
 
-    while (curpos_ctr < input_len) {
-        if (*curpos == '\x1b') {
-            if (!(inescape)) {
-                inescape = 1;
-                escstartpos = curpos;
-                curpos++;
-                curpos_ctr++;
-                if (*curpos != '[') {
-                    escstartpos = startpos;
-                    inescape = 0;
-                } else {
-                    curpos++;
-                    curpos_ctr++;
-                }
-            } else {
-                escstartpos = startpos;
-                inescape = 0;
-            }
-        } else {
-            if (inescape) {
-                if ( ((*curpos >= '0' ) && (*curpos <= '9')) || (*curpos == ';') ) {
-                    curpos++;
-                    curpos_ctr++;
-                } else { 
-                    if (*curpos == 'm') {
-                        esc_len = curpos - escstartpos;
-                        escbuf = malloc(esc_len-1);
-                        if (escbuf) { strncpy(escbuf, escstartpos+2, esc_len-2);  }
-                        escbuf[esc_len-2] = '\0';
-                        ParseAnsiEsc(escbuf, color);
-                        free(escbuf);
-                        text_len= escstartpos - startpos;
-                        if (text_len > 0) { 
-                            plain_text_len += text_len;
-                            textbuf = malloc((text_len * sizeof(char))+ 1);
-                            if (textbuf) { strncpy(textbuf, startpos, text_len);}
-                            textbuf[text_len] = '\0';
-                            strcat(plaintextbuf, textbuf);
-                            head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
-                            free(textbuf);
-                        }
-                        color_ptr = color;
-                        if (color[0] == 'r') { 
-                            head = addnode(head, ansi_reset, strcpy( malloc(strlen(color)+1), color), ""); 
-                        } else if (color[0] == 'f') { //chops off 'fg:'
-                            head = addnode(head, ansi_fg, strcpy( malloc(strlen(color)-2), color_ptr+3),""); 
-                        } else if (color[0] == 'b') {
-                            head = addnode(head, ansi_bg, strcpy(malloc(strlen(color)-2),color_ptr+3), ""); 
-                        } else {
-                            head = addnode(head, -1, "", "");
-                        }
-                        curpos++;
-                        startpos = curpos;
-                        escstartpos = curpos;
-                    } else {
-                        escstartpos = startpos;
-                        curpos++;
-                        curpos_ctr++;
-                    }
-                    inescape = 0; 
-                }
-            } else {
-                curpos++;
-                curpos_ctr++;
-            }
-        }
-    }
-    if(strlen(startpos)) {
-        text_len= strlen(startpos);
-        textbuf = malloc((text_len * sizeof(char))+ 1);
-        if (textbuf) { strncpy(textbuf, startpos, text_len);}
-        textbuf[text_len] = '\0';
-        plain_text_len += strlen(startpos);
-        strcat(plaintextbuf, startpos);
-        head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
-        free(textbuf);
-    } 
-    x = dc.x;
-    dc.x = m->ww - textnw(plaintextbuf, strlen(plaintextbuf));
-    // not sure what would happen here... something wierd probably
-    if(dc.x < x) {
-        dc.x = x;
-        dc.w = m->ww - x;
-    }
-    x_orig = dc.x; //reset dc.x after so the window title doesn't overwrite status
-    curn = head; //iterate linked list
-    if (curn != NULL) {
-        do {
-            if (curn->type == -1) continue;
-            if (curn->type == ansi_reset) { 
-                cur_fg = dc.norm[ColFG];
-                cur_bg = dc.norm[ColBG]; 
-                free(curn->color);
-            } else if (curn->type == ansi_fg) {
-                cur_fg = getcolor(curn->color);
-                free(curn->color);
-            } else if (curn->type == ansi_bg) {
-                cur_bg = getcolor(curn->color);
-                free(curn->color);
-            } else if (curn->type == ansi_text) {
-                dc.w = textnw(curn->text, strlen(curn->text));
-                drawcoloredtext(curn->text, cur_fg, cur_bg);
-                dc.x += dc.w;
-            
-                free(curn->text);
+	while (curpos_ctr < input_len) {
+		if (*curpos == '\x1b') {
+			if (!(inescape)) {
+				inescape = 1;
+				escstartpos = curpos;
+				curpos++;
+				curpos_ctr++;
+				if (*curpos != '[') {
+					escstartpos = startpos;
+					inescape = 0;
+				} else {
+					curpos++;
+					curpos_ctr++;
+				}
+			} else {
+				escstartpos = startpos;
+				inescape = 0;
+			}
+		} else {
+			if (inescape) {
+				if ( ((*curpos >= '0' ) && (*curpos <= '9')) || (*curpos == ';') ) {
+					curpos++;
+					curpos_ctr++;
+				} else { 
+					if (*curpos == 'm') {
+						esc_len = curpos - escstartpos;
+						escbuf = malloc(esc_len-1);
+						if (escbuf) { strncpy(escbuf, escstartpos+2, esc_len-2);  }
+						escbuf[esc_len-2] = '\0';
+						ParseAnsiEsc(escbuf, color);
+						free(escbuf);
+						text_len= escstartpos - startpos;
+						if (text_len > 0) { 
+							plain_text_len += text_len;
+							textbuf = malloc((text_len * sizeof(char))+ 1);
+							if (textbuf) { strncpy(textbuf, startpos, text_len);}
+							textbuf[text_len] = '\0';
+							strcat(plaintextbuf, textbuf);
+							head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
+							free(textbuf);
+						}
+						color_ptr = color;
+						if (color[0] == 'r') { 
+							head = addnode(head, ansi_reset, strcpy( malloc(strlen(color)+1), color), ""); 
+						} else if (color[0] == 'f') { //chops off 'fg:'
+							head = addnode(head, ansi_fg, strcpy( malloc(strlen(color)-2), color_ptr+3),""); 
+						} else if (color[0] == 'b') {
+							head = addnode(head, ansi_bg, strcpy(malloc(strlen(color)-2),color_ptr+3), ""); 
+						} else {
+							head = addnode(head, -1, "", "");
+						}
+						curpos++;
+						startpos = curpos;
+						escstartpos = curpos;
+					} else {
+						escstartpos = startpos;
+						curpos++;
+						curpos_ctr++;
+					}
+					inescape = 0; 
+				}
+			} else {
+				curpos++;
+				curpos_ctr++;
+			}
+		}
+	}
+	if(strlen(startpos)) {
+		text_len= strlen(startpos);
+		textbuf = malloc((text_len * sizeof(char))+ 1);
+		if (textbuf) { strncpy(textbuf, startpos, text_len);}
+		textbuf[text_len] = '\0';
+		plain_text_len += strlen(startpos);
+		strcat(plaintextbuf, startpos);
+		head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
+		free(textbuf);
+	} 
+	x = dc.x;
+	dc.x = m->ww - textnw(plaintextbuf, strlen(plaintextbuf));
+	// not sure what would happen here... something wierd probably
+	if(dc.x < x) {
+		dc.x = x;
+		dc.w = m->ww - x;
+	}
+	x_orig = dc.x; //reset dc.x after so the window title doesn't overwrite status
+	curn = head; //iterate linked list
+	if (curn != NULL) {
+		do {
+			if (curn->type == -1) continue;
+			if (curn->type == ansi_reset) { 
+				cur_fg = dc.norm[ColFG];
+				cur_bg = dc.norm[ColBG]; 
+				free(curn->color);
+			} else if (curn->type == ansi_fg) {
+				cur_fg = getcolor(curn->color);
+				free(curn->color);
+			} else if (curn->type == ansi_bg) {
+				cur_bg = getcolor(curn->color);
+				free(curn->color);
+			} else if (curn->type == ansi_text) {
+				dc.w = textnw(curn->text, strlen(curn->text));
+				drawcoloredtext(curn->text, cur_fg, cur_bg);
+				dc.x += dc.w;
+			
+				free(curn->text);
 
 
 
-            } else {
-                continue;
-            }    
-            curn = curn->next;
-        } while (curn != head);
-    }
-    dc.x = x_orig;
-    destroy_llist(head);
+			} else {
+				continue;
+			}    
+			curn = curn->next;
+		} while (curn != head);
+	}
+	dc.x = x_orig;
+	destroy_llist(head);
 }
 
 int //count occurrences of c in buf 
 countchars(char c, char * buf) {
-    char *ptr = buf;
-    int ctr = 0;
-    while(*ptr) {
-        if(*ptr == c) ctr++;
-        ptr++;
-    }
-    return ctr;
+	char *ptr = buf;
+	int ctr = 0;
+	while(*ptr) {
+		if(*ptr == c) ctr++;
+		ptr++;
+	}
+	return ctr;
 }
 
 void 
 ParseAnsiEsc(char * seq, char buffer[]){
-    char *cp, *token;
-    static char * standardcolors[2][8] = {
-        {"#000000\0","#800000\0","#008000\0","#808000\0","#000080\0","#800080\0","#008080\0","#c0c0c0\0"},
-        {"#808080\0","#ff0000\0","#00ff00\0","#ffff00\0","#0000ff\0","#ff00ff\0","#00ffff\0","#ffffff\0"}
-    };
-    char * retbuf = (void *)buffer;
-    retbuf[0] = '\0';
+	char *cp, *token;
+	static char * standardcolors[2][8] = {
+		{"#000000\0","#800000\0","#008000\0","#808000\0","#000080\0","#800080\0","#008080\0","#c0c0c0\0"},
+		{"#808080\0","#ff0000\0","#00ff00\0","#ffff00\0","#0000ff\0","#ff00ff\0","#00ffff\0","#ffffff\0"}
+	};
+	char * retbuf = (void *)buffer;
+	retbuf[0] = '\0';
 
-    cp = malloc(strlen(seq) + 1);
-    if (cp) { strcpy(cp, seq); }
+	cp = malloc(strlen(seq) + 1);
+	if (cp) { strcpy(cp, seq); }
 
-    int semis = countchars(';',seq);
-    char *delim = ";";
-    char * toklist[semis + 1];
-    int tok_ctr = 0;
-    int arglist[semis + 1];
-    char color[8];
-    int r,c,i,j;
-    char * layer;
+	int semis = countchars(';',seq);
+	char *delim = ";";
+	char * toklist[semis + 1];
+	int tok_ctr = 0;
+	int arglist[semis + 1];
+	char color[8];
+	int r,c,i,j;
+	char * layer;
 
-    token = strtok(cp,delim);
-    while(token) {
-        toklist[tok_ctr] = token;
-        tok_ctr++;
-        token = strtok(NULL,delim);
-    } 
-    if ((tok_ctr > 3) || (tok_ctr < 1)) {
-        free(cp);
-         return;
-    }
-    if (tok_ctr == 1) { 
-        if (strlen(toklist[0]) != 1) return;
-        if (toklist[0][0] != '0') {
-            free(cp);
-            return;
-        } else {
-            sprintf(retbuf,"r"); //reset to default
-            free(cp);
-            return;
-        }
-    }
-    for (i=0; i < tok_ctr; i++) {
-        for(j=0; j < strlen(toklist[i]); j++){
-            if ((toklist[i][j] < '0') || (toklist[i][j] > '9')) {
-                free(cp);
-                return;
-            }
-        }
-        arglist[i] = atoi(toklist[i]);
-    }
-    if (tok_ctr == 3) {
-        if (!(
-            (arglist[1] == 5) && 
-            ((arglist[0] == 38) || (arglist[0] == 48)) && 
-            (arglist[2] >= 16) && 
-            (arglist[2] <= 255)
-        )) {
-            free(cp);
-            return;
-        } else {
-            if (arglist[0] == 38) {
-                sprintf(retbuf,"fg:");
-            } else {
-                sprintf(retbuf,"bg:");
-            }
-           
-            GetAnsiColor(arglist[2], color);
-            strcat(retbuf, color);
-            free(cp);
-            return;
-         }
-    } else {
-        for (i = 0; i < tok_ctr; i++) {
-            if (!(
-                (arglist[i] == 0) ||
-                (arglist[i] == 1) ||
-                ((arglist[i] >= 30) && (arglist[i] <= 37)) ||
-                ((arglist[i] >= 40) && (arglist[i] <= 47))
-            )) {
-                free(cp);
-                return;
-            }
-        } 
-        if ((arglist[0] < 30) 
-        && (arglist[1] < 30)) {
-            free(cp);
-            return;
-        }
-        if ((arglist[0] > 1) 
-        && (arglist[1] > 1)) {
-            free(cp);
-            return;  
-        }
-        if (arglist[0] < 30) {
-            r = arglist[0];
-            c = arglist[1];
-        } else {
-            r = arglist[1];
-            c = arglist[0];
-        }
-        if (c > 37) {
-            layer = "bg:";
-            c -= 10;
-        } else {
-            layer = "fg:";
-        }
-        sprintf(retbuf, "%s%s", layer, standardcolors[r][c-30]);
-        free(cp);
-    } 
+	token = strtok(cp,delim);
+	while(token) {
+		toklist[tok_ctr] = token;
+		tok_ctr++;
+		token = strtok(NULL,delim);
+	} 
+	if ((tok_ctr > 3) || (tok_ctr < 1)) {
+		free(cp);
+		 return;
+	}
+	if (tok_ctr == 1) { 
+		if (strlen(toklist[0]) != 1) return;
+		if (toklist[0][0] != '0') {
+			free(cp);
+			return;
+		} else {
+			sprintf(retbuf,"r"); //reset to default
+			free(cp);
+			return;
+		}
+	}
+	for (i=0; i < tok_ctr; i++) {
+		for(j=0; j < strlen(toklist[i]); j++){
+			if ((toklist[i][j] < '0') || (toklist[i][j] > '9')) {
+				free(cp);
+				return;
+			}
+		}
+		arglist[i] = atoi(toklist[i]);
+	}
+	if (tok_ctr == 3) {
+		if (!(
+			(arglist[1] == 5) && 
+			((arglist[0] == 38) || (arglist[0] == 48)) && 
+			(arglist[2] >= 16) && 
+			(arglist[2] <= 255)
+		)) {
+			free(cp);
+			return;
+		} else {
+			if (arglist[0] == 38) {
+				sprintf(retbuf,"fg:");
+			} else {
+				sprintf(retbuf,"bg:");
+			}
+		   
+			GetAnsiColor(arglist[2], color);
+			strcat(retbuf, color);
+			free(cp);
+			return;
+		 }
+	} else {
+		for (i = 0; i < tok_ctr; i++) {
+			if (!(
+				(arglist[i] == 0) ||
+				(arglist[i] == 1) ||
+				((arglist[i] >= 30) && (arglist[i] <= 37)) ||
+				((arglist[i] >= 40) && (arglist[i] <= 47))
+			)) {
+				free(cp);
+				return;
+			}
+		} 
+		if ((arglist[0] < 30) 
+		&& (arglist[1] < 30)) {
+			free(cp);
+			return;
+		}
+		if ((arglist[0] > 1) 
+		&& (arglist[1] > 1)) {
+			free(cp);
+			return;  
+		}
+		if (arglist[0] < 30) {
+			r = arglist[0];
+			c = arglist[1];
+		} else {
+			r = arglist[1];
+			c = arglist[0];
+		}
+		if (c > 37) {
+			layer = "bg:";
+			c -= 10;
+		} else {
+			layer = "fg:";
+		}
+		sprintf(retbuf, "%s%s", layer, standardcolors[r][c-30]);
+		free(cp);
+	} 
 }
 
 void 
 GetAnsiColor(int escapecode, char buffer[]){
-    char steps[6][3] = {
-        "00\0", "5f\0", "87\0", "af\0", "d6\0", "ff\0",
-    };
-    int i, panel, cell, col, row, val;
-    int cmin = 16;
-    int cmax = 231;
-    int gmax = 255;
-    int n = escapecode;
-    char * retbuf = (void *)buffer;
+	char steps[6][3] = {
+		"00\0", "5f\0", "87\0", "af\0", "d6\0", "ff\0",
+	};
+	int i, panel, cell, col, row, val;
+	int cmin = 16;
+	int cmax = 231;
+	int gmax = 255;
+	int n = escapecode;
+	char * retbuf = (void *)buffer;
 
-    if (n < cmin) {
-        return;
-    } else if (n > gmax) {
-        return;
-    } else if (n <= cmax) {
-        i = n - 15;
-        panel = i / 36;
-        cell = i % 36;
-        if (cell == 0) {
-            cell = 36;
-            panel -= 1;
-        }
-        col = cell / 6;
-        row = cell % 6;
-        if (row == 0) {
-            col -= 1;
-            row = 5;
-        } else {
-            row -= 1;
-        }
-        sprintf(retbuf, "#%s%s%s", steps[panel], steps[col], steps[row]);
-    } else {
-        val = ((10*(n-232))+8);
-        sprintf(retbuf, "#%.2x%.2x%.2x",val,val,val);
-    }
+	if (n < cmin) {
+		return;
+	} else if (n > gmax) {
+		return;
+	} else if (n <= cmax) {
+		i = n - 15;
+		panel = i / 36;
+		cell = i % 36;
+		if (cell == 0) {
+			cell = 36;
+			panel -= 1;
+		}
+		col = cell / 6;
+		row = cell % 6;
+		if (row == 0) {
+			col -= 1;
+			row = 5;
+		} else {
+			row -= 1;
+		}
+		sprintf(retbuf, "#%s%s%s", steps[panel], steps[col], steps[row]);
+	} else {
+		val = ((10*(n-232))+8);
+		sprintf(retbuf, "#%.2x%.2x%.2x",val,val,val);
+	}
 }
 
 /*************************************************
@@ -3045,3 +3047,62 @@ end ansistatuscolors - la11111
 ***************************************************/
 
 
+/**
+ * Magically finds the current's executable path
+ *
+ * I'm doing the do{}while(); trick because Linux (what I'm running) is not
+ * POSIX compilant and so lstat() cannot be trusted on /proc entries
+ *
+ * @return char* the path of the current executable
+ */
+char *get_dwm_path(){
+	struct stat s;
+	int r, length, rate = 42;
+	char *path = NULL;
+
+	if(lstat("/proc/self/exe", &s) == -1){
+		perror("lstat:");
+		return NULL;
+	}
+
+	length = s.st_size + 1 - rate;
+
+	do {
+		length+=rate;
+
+		free(path);
+		path = malloc(sizeof(char) * length);
+
+		if(path == NULL){
+			perror("malloc:");
+			return NULL;
+		}
+
+		r = readlink("/proc/self/exe", path, length);
+
+		if(r == -1){
+			perror("readlink:");
+			return NULL;
+		}
+	} while(r >= length);
+
+	path[r] = '\0';
+
+	return path;
+}
+
+/**
+ * self-restart
+ *
+ * Initially inspired by: Yu-Jie Lin
+ * https://sites.google.com/site/yjlnotes/notes/dwm
+ */
+void self_restart(const Arg *arg) {
+	char *const argv[] = {get_dwm_path(), NULL};
+
+	if(argv[0] == NULL){
+		return;
+	}
+
+	execv(argv[0], argv);
+}
