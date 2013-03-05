@@ -22,6 +22,7 @@
  */
 #include <errno.h>
 #include <locale.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <signal.h>
 #include <stdio.h>
@@ -220,6 +221,7 @@ static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+char *get_dwm_path();
 static Atom getatomprop(Client *c, Atom prop);
 //static unsigned long getcolor(const char *colstr);
 static XftColor getcolor(const char *colstr);
@@ -252,6 +254,7 @@ static void resizemouse(const Arg *arg);
 static void resizerequest(XEvent *e);
 static void restack(Monitor *m);
 static void run(void);
+void *runstatus(void *args);
 static void scan(void);
 void self_restart(const Arg *arg);
 static Bool sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
@@ -329,12 +332,14 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
-static Bool running = True;
+static volatile Bool running = True;
 static Cursor cursor[CurLast];
 static Display *dpy;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
 static Window root;
+
+static char *exepath;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -998,9 +1003,10 @@ void
 expose(XEvent *e) {
 	Monitor *m;
 	XExposeEvent *ev = &e->xexpose;
-
-	if(ev->count == 0 && (m = wintomon(ev->window)))
+	if(ev->count == 0 && (m = wintomon(ev->window))) {
+		updatestatus();
 		drawbar(m);
+	}
 }
 
 void
@@ -1365,8 +1371,8 @@ monocle(Monitor *m) {
 	for(c = m->clients; c; c = c->next)
 		if(ISVISIBLE(c))
 			n++;
-	if(n > 0) /* override layout symbol */
-		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+	//if(n > 0) /* override layout symbol */
+	//	snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for(c = nexttiled(m->clients); c; c = nexttiled(c->next))
 		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, False);
 }
@@ -1471,8 +1477,8 @@ propertynotify(XEvent *e) {
 		resizebarwin(selmon);
 		updatesystray();
 	}
-	if((ev->window == root) && (ev->atom == XA_WM_NAME))
-		updatestatus();
+	/*if((ev->window == root) && (ev->atom == XA_WM_NAME))
+		updatestatus();*/
 	else if(ev->state == PropertyDelete)
 		return; /* ignore */
 	else if((c = wintoclient(ev->window))) {
@@ -1649,11 +1655,35 @@ restack(Monitor *m) {
 void
 run(void) {
 	XEvent ev;
+	pthread_t thread;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	/* main event loop */
+	pthread_create(&thread, &attr, runstatus, NULL);
 	XSync(dpy, False);
 	while(running && !XNextEvent(dpy, &ev))
 		if(handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
+	
+		pthread_join(thread, NULL);
+}
+
+void *runstatus(void *args) {
+	while(running) {
+		Window w=selmon->barwin;
+		XExposeEvent ev={
+			Expose, 0, 1,
+			dpy, w,
+			0, 0,
+			0, 0,
+			0,
+		};
+		XSendEvent(dpy, w, False, ExposureMask, (XEvent *) &ev);
+		XFlush(dpy);
+		sleep(1);
+	}
+	pthread_exit(NULL);
 }
 
 void
@@ -1806,6 +1836,7 @@ setmfact(const Arg *arg) {
 
 void
 setup(void) {
+	Atom netwmcheck, utf8_string;
 	XSetWindowAttributes wa;
 
 	/* clean up any zombies immediately */
@@ -1863,6 +1894,13 @@ setup(void) {
 	/* EWMH support per view */
 	XChangeProperty(dpy, root, netatom[NetSupported], XA_ATOM, 32,
 			PropModeReplace, (unsigned char *) netatom, NetLast);
+	
+	netwmcheck = XInternAtom(dpy, "_NET_SUPPORTING_WM_CHECK", False);
+	utf8_string = XInternAtom(dpy, "UTF8_STRING", False);
+	
+	XChangeProperty(dpy, root, netwmcheck, XA_WINDOW, 32, PropModeReplace, (unsigned char *)&root, 1);
+	XChangeProperty(dpy, root, netatom[NetWMName], utf8_string, 8, PropModeReplace, (unsigned char *) wmname, strlen(wmname));
+	
 	/* select for events */
 	wa.cursor = cursor[CurNormal];
 	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask|ButtonPressMask|PointerMotionMask
@@ -1870,6 +1908,7 @@ setup(void) {
 	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
+	exepath=get_dwm_path();
 }
 
 void
@@ -2303,7 +2342,7 @@ updatetitle(Client *c) {
 
 void
 updatestatus(void) {
-	char buftext[STATUS_BUF_LEN];
+	/*char buftext[STATUS_BUF_LEN];
 	if(!gettextprop(root, XA_WM_NAME, buftext, sizeof(buftext)))
 		strcpy(stext, "dwm-"VERSION);
 	else {
@@ -2335,7 +2374,19 @@ updatestatus(void) {
 			stext[i] = buftext[i];
 			stext[sizeof(stext) - 1] = '\0';
 		}
-	}
+	}*/
+	
+	time_t rawtime;
+	struct tm *timeinfo;
+	char timebuf[16];
+
+	time(&rawtime);
+	timeinfo=localtime(&rawtime);
+
+	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
+	
+	sprintf(stext, " ⛁ 100%% │ ♫ 100%% │ ◷ %s │", timebuf);
+	btext[0]=0;
 	drawbar(selmon);
 }
 
@@ -3111,7 +3162,7 @@ char *get_dwm_path(){
  * https://sites.google.com/site/yjlnotes/notes/dwm
  */
 void self_restart(const Arg *arg) {
-	char *const argv[] = {get_dwm_path(), NULL};
+	char *const argv[] = {exepath, NULL};
 
 	if(argv[0] == NULL){
 		return;

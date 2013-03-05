@@ -100,7 +100,7 @@ int main(void) {
 		tmutc = mktimes("%H:%M", tzutc);
 		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzberlin);
 
-		status = smprintf("L:%s A:%s U:%s %s", avgs, tmar, tmutc, tmbln);
+		status = smprintf("L:%s A:%s ◷ %s", avgs, tmar, tmutc);
 		setstatus(status);
 		free(avgs);
 		free(tmar);

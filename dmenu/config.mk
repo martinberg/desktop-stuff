@@ -12,9 +12,13 @@ X11LIB = /usr/X11R6/lib
 XINERAMALIBS  = -lXinerama
 XINERAMAFLAGS = -DXINERAMA
 
+# Xft, comment if you don't want it
+XFTINC = `pkg-config --cflags freetype2 xft`
+XFTLIBS  = `pkg-config --libs freetype2 xft`
+
 # includes and libs
-INCS = -I${X11INC}
-LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS}
+INCS = -I${X11INC} ${XFTINC}
+LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${XFTLIBS}
 
 # flags
 CPPFLAGS = -D_BSD_SOURCE -D_POSIX_C_SOURCE=2 -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
