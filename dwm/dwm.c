@@ -169,7 +169,7 @@ static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 
-void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button));
+void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*expose)(Indicator *indicator, Window window), void (*mouse)(Indicator *indicator, unsigned int button));
 
 /* variables */
 static Systray *systray = NULL;
@@ -206,8 +206,8 @@ static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
 static volatile Bool running = True;
 Cursor cursor[CurLast];
 Display *dpy;
-static DC dc;
-static Monitor *mons = NULL, *selmon = NULL;
+DC dc;
+Monitor *mons = NULL, *selmon = NULL;
 Window root;
 
 static char *exepath;
@@ -1784,8 +1784,8 @@ setup(void) {
 	grabkeys();
 	exepath=get_dwm_path();
 	
-	indicator_add(indicator_time_init, indicator_time_update, indicator_time_mouse);
-	indicator_add(indicator_music_init, indicator_music_update, indicator_music_mouse);
+	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_mouse);
+	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_mouse);
 	
 	for(in=&indicator; *in; in=&((*in)->next))
 		if((*in)->init)
@@ -1904,10 +1904,10 @@ togglebar(const Arg *arg) {
 
 void
 togglebottombar(const Arg *arg) {
-    selmon->showbottombar = !selmon->showbottombar;
-    updatebarpos(selmon);
-    XMoveResizeWindow(dpy, selmon->bbarwin, selmon->wx, selmon->bby, selmon->ww, bh);
-    arrange(selmon);
+	selmon->showbottombar = !selmon->showbottombar;
+	updatebarpos(selmon);
+	XMoveResizeWindow(dpy, selmon->bbarwin, selmon->wx, selmon->bby, selmon->ww, bh);
+	arrange(selmon);
 }
 
 void
@@ -3079,13 +3079,14 @@ void self_restart(const Arg *arg) {
 	execv(argv[0], argv);
 }
 
-void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button)) {
+void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*expose)(Indicator *indicator, Window window), void (*mouse)(Indicator *indicator, unsigned int button)) {
 	Indicator **i, *ii;
 	for(i=&indicator; *i; i=&((*i)->next));
 	*i=ii=malloc(sizeof(Indicator));
 	ii->init=init;
 	ii->active=False;
 	ii->update=update;
+	ii->expose=expose;
 	ii->mouse=mouse;
 	ii->text[0]=0;
 	ii->x=0;

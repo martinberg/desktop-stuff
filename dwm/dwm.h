@@ -142,6 +142,7 @@ typedef struct Indicator {
 	int width;
 	int (*init)(struct Indicator *indicator);
 	void (*update)(struct Indicator *indicator);
+	void (*expose)(struct Indicator *indicator, Window window);
 	void (*mouse)(struct Indicator *indicator, unsigned int button);
 	void *data;
 	struct Indicator *next;
@@ -152,15 +153,19 @@ extern Cursor cursor[];
 extern Window root;
 extern int bh;
 extern int screen;
+extern DC dc;
+extern Monitor *selmon;
 
 int textnw(const char *text, unsigned int len);
 
 int indicator_time_init(Indicator *indicator);
 void indicator_time_update(Indicator *indicator);
+void indicator_time_expose(Indicator *indicator, Window window);
 void indicator_time_mouse(Indicator *indicator, unsigned int button);
 
 int indicator_music_init(Indicator *indicator);
 void indicator_music_update(Indicator *indicator);
+void indicator_music_expose(Indicator *indicator, Window window);
 void indicator_music_mouse(Indicator *indicator, unsigned int button);
 
 #endif

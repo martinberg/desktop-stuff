@@ -17,6 +17,9 @@ void indicator_time_update(Indicator *indicator) {
 	//indicator->width=textnw(indicator->text, strlen(indicator->text));
 }
 
+void indicator_time_expose(Indicator *indicator, Window window) {
+}
+
 void indicator_time_mouse(Indicator *indicator, unsigned int button) {
 	if(button==Button1||button==Button3) {
 		printf("clicked time indicator\n");

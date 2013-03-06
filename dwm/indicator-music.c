@@ -1,7 +1,7 @@
 #include <dbus/dbus.h>
 #include "dwm.h"
 
-#define MENU_WIDTH 64
+#define MENU_WIDTH 128
 
 static const char *mpris="org.mpris.MediaPlayer2.";
 static struct {
@@ -69,19 +69,20 @@ static void menu_open(Indicator *indicator) {
 	struct MEDIAPLAYER *mp;
 	XSetWindowAttributes wa={
 		.override_redirect=True,
-		.background_pixmap=ParentRelative,
+		//.background_pixel=XBlackPixel(dpy, screen),
 		.event_mask=ButtonPressMask|ExposureMask,
 	};
-	if(menu) {
-		XRaiseWindow(dpy, menu);
-		return;
-	}
 	for(mp=mediaplayer, i=0; mp; mp=mp->next, i++);
-	menu=XCreateWindow(dpy, root,
-		indicator->x-MENU_WIDTH+indicator->width, bh, MENU_WIDTH, bh*2*i, 0, DefaultDepth(dpy, screen),
-		CopyFromParent, DefaultVisual(dpy, screen),
+	/*menu=XCreateWindow(dpy, root,
+		0, bh, MENU_WIDTH, bh*2*i, 0, DefaultDepth(dpy, screen),
+		InputOutput, DefaultVisual(dpy, screen),
 		CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa
+	);*/
+	menu=XCreateSimpleWindow(dpy, root, 
+		selmon->mx+indicator->x-MENU_WIDTH+indicator->width, bh, MENU_WIDTH, bh*2*(i+1),
+		1, dc.norm[ColBorder].pixel, dc.norm[ColBG].pixel
 	);
+	XSelectInput(dpy, menu, ExposureMask);
 	XDefineCursor(dpy, menu, cursor[CurNormal]);
 	XMapRaised(dpy, menu);
 }
@@ -162,6 +163,12 @@ int indicator_music_init(Indicator *indicator) {
 
 void indicator_music_update(Indicator *indicator) {
 	sprintf(indicator->text, " ♫ %s ", "100%");
+}
+
+void indicator_music_expose(Indicator *indicator, Window window) {
+	if(window!=menu)
+		return;
+	printf("expose\n");
 }
 
 void indicator_music_mouse(Indicator *indicator, unsigned int button) {
