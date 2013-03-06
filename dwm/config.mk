@@ -15,8 +15,8 @@ XINERAMALIBS = -L${X11LIB} -lXinerama
 XINERAMAFLAGS = -DXINERAMA
 
 # includes and libs
-INCS = -I. -I/usr/include -I${X11INC} `pkg-config --cflags freetype2 xft`
-LIBS = -L/usr/lib -lc -L${X11LIB} -lX11 ${XINERAMALIBS} `pkg-config --libs freetype2 xft` -pthread
+INCS = -I. -I/usr/include -I${X11INC} `pkg-config --cflags freetype2 xft dbus-1`
+LIBS = -L/usr/lib -lc -L${X11LIB} -lX11 ${XINERAMALIBS} `pkg-config --libs freetype2 xft dbus-1` -pthread
 
 # flags
 CPPFLAGS = -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}

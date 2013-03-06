@@ -279,7 +279,7 @@ static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 
-void indicator_add(void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button));
+void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button));
 
 /* variables */
 static Systray *systray = NULL;
@@ -1816,6 +1816,7 @@ void
 setup(void) {
 	Atom netwmcheck, utf8_string;
 	XSetWindowAttributes wa;
+	Indicator **in, *in_next;
 
 	/* clean up any zombies immediately */
 	sigchld(0);
@@ -1888,8 +1889,18 @@ setup(void) {
 	grabkeys();
 	exepath=get_dwm_path();
 	
-	indicator_add(indicator_time_update, indicator_time_mouse);
-	indicator_add(indicator_music_update, indicator_music_mouse);
+	indicator_add(indicator_time_init, indicator_time_update, indicator_time_mouse);
+	indicator_add(indicator_music_init, indicator_music_update, indicator_music_mouse);
+	
+	for(in=&indicator; *in; in=&((*in)->next))
+		if((*in)->init)
+			if((*in)->init(*in)<0) {
+				Indicator *i=*in;
+				free(i);
+				if(!(*in=&(*in)->next))
+					break;
+			}
+				
 }
 
 void
@@ -3160,10 +3171,11 @@ void self_restart(const Arg *arg) {
 	execv(argv[0], argv);
 }
 
-void indicator_add(void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button)) {
+void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button)) {
 	Indicator **i, *ii;
 	for(i=&indicator; *i; i=&((*i)->next));
 	*i=ii=malloc(sizeof(Indicator));
+	ii->init=init;
 	ii->update=update;
 	ii->mouse=mouse;
 	ii->text[0]=0;

@@ -1,5 +1,9 @@
 #include "dwm.h"
 
+int indicator_time_init(Indicator *indicator) {
+	return 0;
+}
+
 void indicator_time_update(Indicator *indicator) {
 	time_t rawtime;
 	struct tm *timeinfo;

@@ -29,6 +29,7 @@ typedef struct Indicator {
 	char text[64];
 	int x;
 	int width;
+	int (*init)(struct Indicator *indicator);
 	void (*update)(struct Indicator *indicator);
 	void (*mouse)(struct Indicator *indicator, unsigned int button);
 	struct Indicator *next;
@@ -36,9 +37,11 @@ typedef struct Indicator {
 
 int textnw(const char *text, unsigned int len);
 
+int indicator_time_init(Indicator *indicator);
 void indicator_time_update(Indicator *indicator);
 void indicator_time_mouse(Indicator *indicator, unsigned int button);
 
+int indicator_music_init(Indicator *indicator);
 void indicator_music_update(Indicator *indicator);
 void indicator_music_mouse(Indicator *indicator, unsigned int button);
 

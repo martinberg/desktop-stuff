@@ -28,6 +28,7 @@ static const Rule rules[] = {
 	/*{"Gimp",     NULL,       NULL,       0,            True,        -1},*/
 	{"Firefox",  NULL,       NULL,       1,       False,       1},
 	{"Audacious",  NULL,       NULL,       1<<8,       True,       0},
+	{"Update-manager",  NULL,       NULL,       1<<8,       True,       0},
 };
 
 /* layout(s) */
