@@ -10,12 +10,14 @@ static struct {
 	DBusError error;
 	dbus_uint32_t serial;
 	const char *interface;
+	const char *interface_prop;
 	const char *object;
 } dbus={
 	NULL,
 	{0},
 	0,
 	"org.freedesktop.DBus",
+	"org.freedesktop.DBus.Properties",
 	"/org/freedesktop/DBus",
 };
 
@@ -50,14 +52,67 @@ static struct MEDIAPLAYER {
 } *mediaplayer=NULL;
 
 static void mediaplayer_register(const char *id) {
+	DBusMessage* msg;
+	DBusMessageIter args, element;
+	DBusPendingCall* pending;
+	char *name=NULL;
+	static const char *interface="org.mpris.MediaPlayer2";
+	static const char *prop="Identity";
 	struct MEDIAPLAYER **mp;
+	char player[256];
+	
 	for(mp=&mediaplayer; *mp; mp=&((*mp)->next)) {
 		if(!strcmp(id, (*mp)->id))
 			return;
 	}
+	sprintf(player, "%s.%s", interface, id);
+	if(!(msg=dbus_message_new_method_call(player, "/org/mpris/MediaPlayer2", dbus.interface_prop, "Get")))
+		goto do_register;
+	dbus_message_iter_init_append(msg, &args);
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &interface)) {
+		dbus_message_unref(msg);
+		goto do_register;
+	}
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &prop)) {
+		dbus_message_unref(msg);
+		goto do_register;
+	}
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
+		dbus_message_unref(msg);
+		goto do_register;
+	}
+	if(!pending) {
+		dbus_message_unref(msg);
+		goto do_register;
+	}
+	dbus_connection_flush(dbus.connection);
+	dbus_message_unref(msg);
+	dbus_pending_call_block(pending);
+	if (!(msg=dbus_pending_call_steal_reply(pending))) {
+		dbus_pending_call_unref(pending);
+		goto do_register;
+	}
+	dbus_pending_call_unref(pending);
+	if(!dbus_message_iter_init(msg, &args)) {
+		dbus_message_unref(msg);
+		goto do_register;
+	} else if(dbus_message_iter_get_arg_type(&args)!=DBUS_TYPE_VARIANT) {
+		dbus_message_unref(msg);
+		goto do_register;
+	}
+	
+	dbus_message_iter_recurse (&args, &element);
+	dbus_message_iter_get_basic(&element, &name);
+	
+	do_register:
+	printf(" * %s (%s)\n", player+strlen(mpris), name);
 	*mp=malloc(sizeof(struct MEDIAPLAYER));
 	(*mp)->id=malloc(strlen(id)+1);
-	(*mp)->name=NULL;
+	if(name) {
+		(*mp)->name=malloc(strlen(name)+1);
+		strcpy((void *) (*mp)->name, name);
+	} else
+		(*mp)->name=NULL;
 	(*mp)->next=NULL;
 	strcpy((void *) (*mp)->id, id);
 }
@@ -256,7 +311,6 @@ int indicator_music_init(Indicator *indicator) {
 			continue;
 		dbus_message_iter_get_basic(&element, &player);
 		if(!strncmp(player, mpris, strlen(mpris))) {
-			printf(" * %s\n", player+strlen(mpris));
 			mediaplayer_register(player+strlen(mpris));
 		}
 		dbus_message_iter_next(&element);
@@ -320,7 +374,7 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 	draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
 	y=2*bh;
 	for(mp=mediaplayer; mp; mp=mp->next, y+=bh*2)
-		draw_text(0, y, menu.w, bh, dc.norm, mp->id);
+		draw_text(0, y, menu.w, bh, dc.norm, mp->name?mp->name:mp->id);
 	XFlush(dpy);
 }
 
