@@ -30,6 +30,7 @@ static void mediaplayer_register(const char *id) {
 	}
 	*mp=malloc(sizeof(struct MEDIAPLAYER));
 	(*mp)->id=malloc(strlen(id)+1);
+	(*mp)->name=NULL;
 	(*mp)->next=NULL;
 	strcpy((void *) (*mp)->id, id);
 }
@@ -40,10 +41,22 @@ static void mediaplayer_deregister(const char *id) {
 		if(!strcmp(id, (*mp)->id)) {
 			mp_next=(*mp)->next;
 			free((void *) (*mp)->id);
+			free((void *) (*mp)->name);
 			free(*mp);
 			*mp=mp_next;
 			return;
 		}
+	}
+}
+
+static void mediaplayer_deregister_all() {
+	struct MEDIAPLAYER *mp_next;
+	while(mediaplayer) {
+		mp_next=mediaplayer->next;
+		free((void *) mediaplayer->id);
+		free((void *) mediaplayer->name);
+		free(mediaplayer);
+		mediaplayer=mp_next;
 	}
 }
 
@@ -104,8 +117,16 @@ int indicator_music_init(Indicator *indicator) {
 		}
 		dbus_message_iter_next(&element);
 	}
-	
 	dbus_message_unref(msg);
+	
+	dbus_bus_add_match(dbus.connection, "type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged'", &dbus.error);
+	dbus_connection_flush(dbus.connection);
+	if(dbus_error_is_set(&dbus.error)) { 
+		dbus_connection_unref(dbus.connection);
+		mediaplayer_deregister_all();
+		return -1;
+	}
+	
 	return 0;
 }
 
