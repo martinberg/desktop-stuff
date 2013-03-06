@@ -1,22 +1,22 @@
 /* See LICENSE file for copyright and license details. */
 
 /* appearance */
-static const char font[]		= "sans-14";
+static const char font[]		= "sans-10";
 static const char normbordercolor[]	= "#3c3b37";
 static const char normbgcolor[]		= "#3c3b37";
 static const char normfgcolor[]		= "#bbbbbb";
 static const char selbordercolor[]	= "#3c3b37";
 static const char selbgcolor[]		= "#005577";
 static const char selfgcolor[]		= "#eeeeee";
-static const char floatnormbordercolor[] = "#3c3b37";
-static const char floatselbordercolor[]  = "#005577";
-static const unsigned int borderpx	= 1;        /* border pixel of windows */
-static const unsigned int snap		= 32;       /* snap pixel */
-static const unsigned int systrayspacing= 2;   /* systray spacing */
-static const Bool showsystray		= True;     /* False means no systray */
-static const Bool showbar		= True;     /* False means no bar */
-static const Bool topbar		= True;     /* False means bottom bar */
-static const Bool bottombar		= False;     /* True means an extra bar at the bottom */
+static const char floatnormbordercolor[]= "#3c3b37";
+static const char floatselbordercolor[]	= "#005577";
+static const unsigned int borderpx	= 1;		/* border pixel of windows */
+static const unsigned int snap		= 32;		/* snap pixel */
+static const unsigned int systrayspacing= 2;
+static const Bool showsystray		= True;
+static const Bool showbar		= True;
+static const Bool topbar		= True;		/* False means bottom bar */
+static const Bool bottombar		= False;	/* True means an extra bar at the bottom */
 
 static const char *wmname="LG3D";
 

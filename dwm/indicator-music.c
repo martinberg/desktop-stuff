@@ -136,4 +136,5 @@ void indicator_music_update(Indicator *indicator) {
 
 void indicator_music_mouse(Indicator *indicator, unsigned int button) {
 	printf("clicked music indicator\n");
+	indicator->active=!indicator->active;
 }

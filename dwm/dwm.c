@@ -1816,7 +1816,7 @@ void
 setup(void) {
 	Atom netwmcheck, utf8_string;
 	XSetWindowAttributes wa;
-	Indicator **in, *in_next;
+	Indicator **in;
 
 	/* clean up any zombies immediately */
 	sigchld(0);
@@ -1897,7 +1897,7 @@ setup(void) {
 			if((*in)->init(*in)<0) {
 				Indicator *i=*in;
 				free(i);
-				if(!(*in=&(*in)->next))
+				if(!(*in=(*in)->next))
 					break;
 			}
 				
@@ -2814,11 +2814,19 @@ drawstatus(Monitor *m) {
 		int curpos_ctr = 0;
 		int input_len = strlen(i->text);
 		int plain_text_len = 0;
-		XftColor cur_fg = dc.norm[ColFG];
-		XftColor cur_bg = dc.norm[ColBG];
+		XftColor cur_fg;
+		XftColor cur_bg;
 		struct ansi_node *head = NULL;
 		struct ansi_node *curn;
-
+		
+		if(i->active) {
+			cur_fg = dc.sel[ColFG];
+			cur_bg = dc.sel[ColBG];
+		} else {
+			cur_fg = dc.norm[ColFG];
+			cur_bg = dc.norm[ColBG];
+		}
+		
 		while (curpos_ctr < input_len) {
 			if (*curpos == '\x1b') {
 				if (!(inescape)) {
@@ -2913,9 +2921,14 @@ drawstatus(Monitor *m) {
 		if (curn != NULL) {
 			do {
 				if (curn->type == -1) continue;
-				if (curn->type == ansi_reset) { 
-					cur_fg = dc.norm[ColFG];
-					cur_bg = dc.norm[ColBG]; 
+				if (curn->type == ansi_reset) {
+					if(i->active) {
+						cur_fg = dc.sel[ColFG];
+						cur_bg = dc.sel[ColBG];
+					} else {
+						cur_fg = dc.norm[ColFG];
+						cur_bg = dc.norm[ColBG];
+					}
 					free(curn->color);
 				} else if (curn->type == ansi_fg) {
 					cur_fg = getcolor(curn->color);
@@ -2935,7 +2948,7 @@ drawstatus(Monitor *m) {
 				curn = curn->next;
 			} while (curn != head);
 			dc.w=delimwidth;
-			drawcoloredtext(delim, cur_fg, cur_bg);
+			drawcoloredtext(delim, dc.norm[ColFG], dc.norm[ColBG]);
 		}
 		//dc.x = x_orig;
 		destroy_llist(head);
@@ -3176,6 +3189,7 @@ void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *
 	for(i=&indicator; *i; i=&((*i)->next));
 	*i=ii=malloc(sizeof(Indicator));
 	ii->init=init;
+	ii->active=False;
 	ii->update=update;
 	ii->mouse=mouse;
 	ii->text[0]=0;
