@@ -20,28 +20,6 @@
  *
  * To understand everything else, start reading main().
  */
-#include <errno.h>
-#include <locale.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <X11/cursorfont.h>
-#include <X11/keysym.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#include <X11/Xproto.h>
-#include <X11/Xutil.h>
-#ifdef XINERAMA
-#include <X11/extensions/Xinerama.h>
-#endif /* XINERAMA */
-#include <X11/Xft/Xft.h>
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -75,6 +53,8 @@
 #define VERSION_MAJOR               0
 #define VERSION_MINOR               0
 #define XEMBED_EMBEDDED_VERSION (VERSION_MAJOR << 16) | VERSION_MINOR
+
+#include "dwm.h"
 
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast };        /* cursor */
@@ -254,7 +234,6 @@ static void resizemouse(const Arg *arg);
 static void resizerequest(XEvent *e);
 static void restack(Monitor *m);
 static void run(void);
-void *runstatus(void *args);
 static void scan(void);
 void self_restart(const Arg *arg);
 static Bool sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
@@ -270,7 +249,6 @@ static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
-static int textnw(const char *text, unsigned int len);
 static void tile(Monitor *);
 static void togglebar(const Arg *arg);
 static void togglebottombar(const Arg *arg);
@@ -301,8 +279,11 @@ static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 
+void indicator_add(void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button));
+
 /* variables */
 static Systray *systray = NULL;
+static Indicator *indicator=NULL;
 static unsigned long systrayorientation = _NET_SYSTEM_TRAY_ORIENTATION_HORZ;
 static const char broken[] = "broken";
 //static char stext[256];
@@ -514,6 +495,7 @@ buttonpress(XEvent *e) {
 	Client *c;
 	Monitor *m;
 	XButtonPressedEvent *ev = &e->xbutton;
+	Indicator *in;
 
 	click = ClkRootWin;
 	/* focus monitor if necessary */
@@ -537,6 +519,10 @@ buttonpress(XEvent *e) {
 			click = ClkStatusText;
 		else
 			click = ClkWinTitle;
+		for(in=indicator; in; in=in->next) {
+			if(ev->x>=in->x&&ev->x<in->x+in->width)
+				in->mouse(in, ev->button);
+		}
 	}
 	else if((c = wintoclient(ev->window))) {
 		focus(c);
@@ -546,6 +532,7 @@ buttonpress(XEvent *e) {
 		if(click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
 		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
 			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
+	
 }
 
 void
@@ -1003,10 +990,8 @@ void
 expose(XEvent *e) {
 	Monitor *m;
 	XExposeEvent *ev = &e->xexpose;
-	if(ev->count == 0 && (m = wintomon(ev->window))) {
-		updatestatus();
+	if(ev->count == 0 && (m = wintomon(ev->window)))
 		drawbar(m);
-	}
 }
 
 void
@@ -1655,35 +1640,28 @@ restack(Monitor *m) {
 void
 run(void) {
 	XEvent ev;
-	pthread_t thread;
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	/* main event loop */
-	pthread_create(&thread, &attr, runstatus, NULL);
+	int x11_fd = ConnectionNumber(dpy);
+	fd_set in_fds;
+	struct timeval tv;
 	XSync(dpy, False);
-	while(running && !XNextEvent(dpy, &ev))
-		if(handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
-	
-		pthread_join(thread, NULL);
-}
-
-void *runstatus(void *args) {
 	while(running) {
-		Window w=selmon->barwin;
-		XExposeEvent ev={
-			Expose, 0, 1,
-			dpy, w,
-			0, 0,
-			0, 0,
-			0,
-		};
-		XSendEvent(dpy, w, False, ExposureMask, (XEvent *) &ev);
-		XFlush(dpy);
-		sleep(1);
+		// Create a File Description Set containing x11_fd
+		FD_ZERO(&in_fds);
+		FD_SET(x11_fd, &in_fds);
+		tv.tv_usec = 500000;
+		tv.tv_sec = 0;
+
+		// Wait for X Event or a Timer
+		if(!select(x11_fd+1, &in_fds, 0, 0, &tv))
+			updatestatus();
+
+		// Handle XEvents and flush the input 
+		while(XPending(dpy)) {
+			XNextEvent(dpy, &ev);
+			if(handler[ev.type])
+				handler[ev.type](&ev); /* call handler */
+		}
 	}
-	pthread_exit(NULL);
 }
 
 void
@@ -1909,6 +1887,9 @@ setup(void) {
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
 	exepath=get_dwm_path();
+	
+	indicator_add(indicator_time_update, indicator_time_mouse);
+	indicator_add(indicator_music_update, indicator_music_mouse);
 }
 
 void
@@ -2376,16 +2357,13 @@ updatestatus(void) {
 		}
 	}*/
 	
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[16];
-
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
-
-	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
+	//sprintf(stext, " ⛁ 100%% │ ♫ 100%% │ ◷ %s │", timebuf);
 	
-	sprintf(stext, " ⛁ 100%% │ ♫ 100%% │ ◷ %s │", timebuf);
+	Indicator *i;
+	for(i=indicator; i; i=i->next) {
+		i->update(i);
+	}
+	stext[0]=0;
 	btext[0]=0;
 	drawbar(selmon);
 }
@@ -2784,6 +2762,8 @@ ansi_node * addnode(struct ansi_node *head, int type, char * color, char * text)
 void 
 destroy_llist(struct ansi_node *head) {
 	struct ansi_node *current, *tmp;
+	if(!head)
+		return;
 	current = head->next;
 	head->next = NULL;
 	while (current != NULL) {
@@ -2794,153 +2774,162 @@ destroy_llist(struct ansi_node *head) {
 }
 
 void 
-drawstatus (Monitor *m) {
-	/*
-	   this function makes 2 passes:
-		-chops status text into pieces based on esc codes
-		-puts esc codes & text blocks in a linked list
-		-goes back through and outputs those blocks one at a time
-			in the color specified by the preceding escape code 
-	*/
-	char * startpos = stext;
-	char * curpos = stext;
-	char * escstartpos = stext;
-	int inescape = 0;
-	int esc_len, text_len;
-	char * textbuf;
-	char * escbuf;
-	char plaintextbuf[1024] = "\0";
-	char color[16];
-	char * color_ptr;
-	int curpos_ctr = 0;
-	int input_len = strlen(stext);
-	int plain_text_len = 0;
-	XftColor cur_fg = dc.norm[ColFG];
-	XftColor cur_bg = dc.norm[ColBG];
-	struct ansi_node *head = NULL;
-	int x, x_orig;
-	struct ansi_node *curn;
+drawstatus(Monitor *m) {
+	static const char *delim="│";
+	Indicator *i;
+	int totalwidth=0;
+	int delimwidth=textnw(delim, strlen(delim));
+	if(showsystray && m == selmon) {
+		totalwidth += getsystraywidth();
+	}
+	for(i=indicator; i; i=i->next) {
+		/*
+		   this function makes 2 passes:
+			-chops status text into pieces based on esc codes
+			-puts esc codes & text blocks in a linked list
+			-goes back through and outputs those blocks one at a time
+				in the color specified by the preceding escape code 
+		*/
+		char * startpos = i->text;
+		char * curpos = i->text;
+		char * escstartpos = i->text;
+		int inescape = 0;
+		int esc_len, text_len;
+		char * textbuf;
+		char * escbuf;
+		char plaintextbuf[1024] = "\0";
+		char color[16];
+		char * color_ptr;
+		int curpos_ctr = 0;
+		int input_len = strlen(i->text);
+		int plain_text_len = 0;
+		XftColor cur_fg = dc.norm[ColFG];
+		XftColor cur_bg = dc.norm[ColBG];
+		struct ansi_node *head = NULL;
+		struct ansi_node *curn;
 
-
-	while (curpos_ctr < input_len) {
-		if (*curpos == '\x1b') {
-			if (!(inescape)) {
-				inescape = 1;
-				escstartpos = curpos;
-				curpos++;
-				curpos_ctr++;
-				if (*curpos != '[') {
+		while (curpos_ctr < input_len) {
+			if (*curpos == '\x1b') {
+				if (!(inescape)) {
+					inescape = 1;
+					escstartpos = curpos;
+					curpos++;
+					curpos_ctr++;
+					if (*curpos != '[') {
+						escstartpos = startpos;
+						inescape = 0;
+					} else {
+						curpos++;
+						curpos_ctr++;
+					}
+				} else {
 					escstartpos = startpos;
 					inescape = 0;
+				}
+			} else {
+				if (inescape) {
+					if ( ((*curpos >= '0' ) && (*curpos <= '9')) || (*curpos == ';') ) {
+						curpos++;
+						curpos_ctr++;
+					} else { 
+						if (*curpos == 'm') {
+							esc_len = curpos - escstartpos;
+							escbuf = malloc(esc_len-1);
+							if (escbuf) { strncpy(escbuf, escstartpos+2, esc_len-2);  }
+							escbuf[esc_len-2] = '\0';
+							ParseAnsiEsc(escbuf, color);
+							free(escbuf);
+							text_len= escstartpos - startpos;
+							if (text_len > 0) { 
+								plain_text_len += text_len;
+								textbuf = malloc((text_len * sizeof(char))+ 1);
+								if (textbuf) { strncpy(textbuf, startpos, text_len);}
+								textbuf[text_len] = '\0';
+								strcat(plaintextbuf, textbuf);
+								head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
+								free(textbuf);
+							}
+							color_ptr = color;
+							if (color[0] == 'r') { 
+								head = addnode(head, ansi_reset, strcpy( malloc(strlen(color)+1), color), ""); 
+							} else if (color[0] == 'f') { //chops off 'fg:'
+								head = addnode(head, ansi_fg, strcpy( malloc(strlen(color)-2), color_ptr+3),""); 
+							} else if (color[0] == 'b') {
+								head = addnode(head, ansi_bg, strcpy(malloc(strlen(color)-2),color_ptr+3), ""); 
+							} else {
+								head = addnode(head, -1, "", "");
+							}
+							curpos++;
+							startpos = curpos;
+							escstartpos = curpos;
+						} else {
+							escstartpos = startpos;
+							curpos++;
+							curpos_ctr++;
+						}
+						inescape = 0; 
+					}
 				} else {
 					curpos++;
 					curpos_ctr++;
 				}
-			} else {
-				escstartpos = startpos;
-				inescape = 0;
-			}
-		} else {
-			if (inescape) {
-				if ( ((*curpos >= '0' ) && (*curpos <= '9')) || (*curpos == ';') ) {
-					curpos++;
-					curpos_ctr++;
-				} else { 
-					if (*curpos == 'm') {
-						esc_len = curpos - escstartpos;
-						escbuf = malloc(esc_len-1);
-						if (escbuf) { strncpy(escbuf, escstartpos+2, esc_len-2);  }
-						escbuf[esc_len-2] = '\0';
-						ParseAnsiEsc(escbuf, color);
-						free(escbuf);
-						text_len= escstartpos - startpos;
-						if (text_len > 0) { 
-							plain_text_len += text_len;
-							textbuf = malloc((text_len * sizeof(char))+ 1);
-							if (textbuf) { strncpy(textbuf, startpos, text_len);}
-							textbuf[text_len] = '\0';
-							strcat(plaintextbuf, textbuf);
-							head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
-							free(textbuf);
-						}
-						color_ptr = color;
-						if (color[0] == 'r') { 
-							head = addnode(head, ansi_reset, strcpy( malloc(strlen(color)+1), color), ""); 
-						} else if (color[0] == 'f') { //chops off 'fg:'
-							head = addnode(head, ansi_fg, strcpy( malloc(strlen(color)-2), color_ptr+3),""); 
-						} else if (color[0] == 'b') {
-							head = addnode(head, ansi_bg, strcpy(malloc(strlen(color)-2),color_ptr+3), ""); 
-						} else {
-							head = addnode(head, -1, "", "");
-						}
-						curpos++;
-						startpos = curpos;
-						escstartpos = curpos;
-					} else {
-						escstartpos = startpos;
-						curpos++;
-						curpos_ctr++;
-					}
-					inescape = 0; 
-				}
-			} else {
-				curpos++;
-				curpos_ctr++;
 			}
 		}
+		if(strlen(startpos)) {
+			text_len= strlen(startpos);
+			textbuf = malloc((text_len * sizeof(char))+ 1);
+			if (textbuf)
+				strncpy(textbuf, startpos, text_len);
+			textbuf[text_len] = '\0';
+			plain_text_len += strlen(startpos);
+			strcat(plaintextbuf, startpos);
+			head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
+			free(textbuf);
+		} 
+		/*x = dc.x;
+		// not sure what would happen here... something wierd probably
+		if(dc.x < x) {
+			dc.x = x;
+			dc.w = m->ww - x;
+		}*/
+		//x_orig = dc.x; //reset dc.x after so the window title doesn't overwrite status
+		
+		i->width=textnw(plaintextbuf, strlen(plaintextbuf));
+		totalwidth+=i->width+delimwidth;
+		i->x=dc.x=m->ww-totalwidth;
+		
+		curn = head; //iterate linked list
+		if (curn != NULL) {
+			do {
+				if (curn->type == -1) continue;
+				if (curn->type == ansi_reset) { 
+					cur_fg = dc.norm[ColFG];
+					cur_bg = dc.norm[ColBG]; 
+					free(curn->color);
+				} else if (curn->type == ansi_fg) {
+					cur_fg = getcolor(curn->color);
+					free(curn->color);
+				} else if (curn->type == ansi_bg) {
+					cur_bg = getcolor(curn->color);
+					free(curn->color);
+				} else if (curn->type == ansi_text) {
+					dc.w = textnw(curn->text, strlen(curn->text));
+					drawcoloredtext(curn->text, cur_fg, cur_bg);
+					dc.x += dc.w;
+				
+					free(curn->text);
+				} else {
+					continue;
+				}    
+				curn = curn->next;
+			} while (curn != head);
+			dc.w=delimwidth;
+			drawcoloredtext(delim, cur_fg, cur_bg);
+		}
+		//dc.x = x_orig;
+		destroy_llist(head);
 	}
-	if(strlen(startpos)) {
-		text_len= strlen(startpos);
-		textbuf = malloc((text_len * sizeof(char))+ 1);
-		if (textbuf) { strncpy(textbuf, startpos, text_len);}
-		textbuf[text_len] = '\0';
-		plain_text_len += strlen(startpos);
-		strcat(plaintextbuf, startpos);
-		head = addnode(head, ansi_text, "", strcpy(malloc(strlen(textbuf)+1), textbuf));
-		free(textbuf);
-	} 
-	x = dc.x;
-	dc.x = m->ww - textnw(plaintextbuf, strlen(plaintextbuf));
-	// not sure what would happen here... something wierd probably
-	if(dc.x < x) {
-		dc.x = x;
-		dc.w = m->ww - x;
-	}
-	if(showsystray && m == selmon) {
-		dc.x -= getsystraywidth();
-	}
-	x_orig = dc.x; //reset dc.x after so the window title doesn't overwrite status
-	curn = head; //iterate linked list
-	if (curn != NULL) {
-		do {
-			if (curn->type == -1) continue;
-			if (curn->type == ansi_reset) { 
-				cur_fg = dc.norm[ColFG];
-				cur_bg = dc.norm[ColBG]; 
-				free(curn->color);
-			} else if (curn->type == ansi_fg) {
-				cur_fg = getcolor(curn->color);
-				free(curn->color);
-			} else if (curn->type == ansi_bg) {
-				cur_bg = getcolor(curn->color);
-				free(curn->color);
-			} else if (curn->type == ansi_text) {
-				dc.w = textnw(curn->text, strlen(curn->text));
-				drawcoloredtext(curn->text, cur_fg, cur_bg);
-				dc.x += dc.w;
-			
-				free(curn->text);
-
-
-
-			} else {
-				continue;
-			}    
-			curn = curn->next;
-		} while (curn != head);
-	}
-	dc.x = x_orig;
-	destroy_llist(head);
+	dc.x = m->ww - totalwidth;
 }
 
 int //count occurrences of c in buf 
@@ -3169,4 +3158,16 @@ void self_restart(const Arg *arg) {
 	}
 
 	execv(argv[0], argv);
+}
+
+void indicator_add(void (*update)(Indicator *indicator), void (*mouse)(Indicator *indicator, unsigned int button)) {
+	Indicator **i, *ii;
+	for(i=&indicator; *i; i=&((*i)->next));
+	*i=ii=malloc(sizeof(Indicator));
+	ii->update=update;
+	ii->mouse=mouse;
+	ii->text[0]=0;
+	ii->x=0;
+	ii->width=0;
+	ii->next=NULL;
 }

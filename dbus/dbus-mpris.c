@@ -9,6 +9,46 @@ DBusConnection* conn;
 DBusError err;
 dbus_uint32_t serial=0;
 
+struct MEDIAPLAYER {
+	const char *name;
+	struct MEDIAPLAYER *next;
+} *mediaplayer=NULL;
+
+void mediaplayer_register(const char *name) {
+	struct MEDIAPLAYER **mp;
+	for(mp=&mediaplayer; *mp; mp=&((*mp)->next)) {
+		if(!strcmp(name, (*mp)->name))
+			return;
+	}
+	*mp=malloc(sizeof(struct MEDIAPLAYER));
+	(*mp)->name=malloc(strlen(name)+1);
+	(*mp)->next=NULL;
+	strcpy((void *) (*mp)->name, name);
+}
+
+void mediaplayer_deregister(const char *name) {
+	struct MEDIAPLAYER **mp, *mp_next;
+	for(mp=&mediaplayer; *mp; mp=&((*mp)->next)) {
+		if(!strcmp(name, (*mp)->name)) {
+			mp_next=(*mp)->next;
+			free((void *) (*mp)->name);
+			free(*mp);
+			*mp=mp_next;
+			return;
+		}
+	}
+}
+
+void mediaplayer_deregister_all() {
+	struct MEDIAPLAYER *mp_next;
+	while(mediaplayer) {
+		mp_next=mediaplayer->next;
+		free((void *) mediaplayer->name);
+		free(mediaplayer);
+		mediaplayer=mp_next;
+	}
+}
+
 void query() {
 	DBusMessage* msg;
 	DBusMessageIter args;
@@ -70,6 +110,7 @@ void query() {
 		dbus_message_iter_get_basic(&subiter, &player);
 		if(!strncmp(player, mpris, strlen(mpris))) {
 			printf(" * %s\n", player+strlen(mpris));
+			mediaplayer_register(player+strlen(mpris));
 		}
 		dbus_message_iter_next(&subiter);
 	}
@@ -77,9 +118,6 @@ void query() {
 	dbus_message_unref(msg);
 }
 
-/**
- * Listens for signals on the bus
- */
 void receive() {
 	DBusMessage* msg;
 	DBusMessageIter args;
@@ -122,6 +160,7 @@ void receive() {
 			if(!strncmp(player, mpris, strlen(mpris))) {
 				if(!strlen(oldowner)&&strlen(newowner)) {
 					printf("Registered mediaplayer %s\nSending command to start playing music\n", player+strlen(mpris));
+					mediaplayer_register(player+strlen(mpris));
 					DBusMessage *msg2 = dbus_message_new_method_call(
 						player,
 						"/org/mpris/MediaPlayer2",
@@ -133,8 +172,10 @@ void receive() {
 					dbus_message_unref(msg2);
 					serial++;
 				}
-				if(!strlen(newowner))
+				if(!strlen(newowner)) {
 					printf("Deregistered mediaplayer %s (program exited)\n", player+strlen(mpris));
+					mediaplayer_deregister(player+strlen(mpris));
+				}
 			}
 		}
 
@@ -154,7 +195,7 @@ int main(int argc, char** argv) {
 	}
 	query();
 	receive();
-	
+	mediaplayer_deregister_all();
 	//dbus_connection_close(conn);
 	return 0;
 }

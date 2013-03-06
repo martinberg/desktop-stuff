@@ -20,10 +20,10 @@ LIBS = -L/usr/lib -lc -L${X11LIB} -lX11 ${XINERAMALIBS} `pkg-config --libs freet
 
 # flags
 CPPFLAGS = -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
-#CFLAGS = -g -std=gnu99 -pedantic -Wall -O0 ${INCS} ${CPPFLAGS}
-CFLAGS = -std=gnu99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
-#LDFLAGS = -g ${LIBS}
-LDFLAGS = -s ${LIBS}
+CFLAGS = -g -std=gnu99 -pedantic -Wall -O0 ${INCS} ${CPPFLAGS}
+#CFLAGS = -std=gnu99 -pedantic -Wall -Os ${INCS} ${CPPFLAGS}
+LDFLAGS = -g ${LIBS}
+#LDFLAGS = -s ${LIBS}
 
 # Solaris
 #CFLAGS = -fast ${INCS} -DVERSION=\"${VERSION}\"
