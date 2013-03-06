@@ -56,116 +56,6 @@
 
 #include "dwm.h"
 
-/* enums */
-enum { CurNormal, CurResize, CurMove, CurLast };        /* cursor */
-enum { ColBorder, ColFG, ColBG, ColBorderFloat, ColLast };              /* color */
-enum { NetSupported, NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation,
-	   NetWMName, NetWMState, NetWMFullscreen, NetActiveWindow, NetWMWindowType,
-	   NetWMWindowTypeDialog, NetLast }; /* EWMH atoms */
-enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
-enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
-enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-       ClkClientWin, ClkRootWin, ClkLast };             /* clicks */
-
-typedef union {
-	int i;
-	unsigned int ui;
-	float f;
-	const void *v;
-} Arg;
-
-typedef struct {
-	unsigned int click;
-	unsigned int mask;
-	unsigned int button;
-	void (*func)(const Arg *arg);
-	const Arg arg;
-} Button;
-
-typedef struct Monitor Monitor;
-typedef struct Client Client;
-struct Client {
-	char name[256];
-	float mina, maxa;
-	int x, y, w, h;
-	int oldx, oldy, oldw, oldh;
-	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
-	int bw, oldbw;
-	unsigned int tags;
-	Bool isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
-	Client *next;
-	Client *snext;
-	Monitor *mon;
-	Window win;
-};
-
-typedef struct {
-	int x, y, w, h;
-	XftColor norm[ColLast];
-	XftColor sel[ColLast];
-	Drawable drawable;
-	GC gc;
-	struct {
-		int ascent;
-		int descent;
-		int height;
-		XftFont *xfont;
-	} font;
-} DC; /* draw context */
-
-typedef struct {
-	unsigned int mod;
-	KeySym keysym;
-	void (*func)(const Arg *);
-	const Arg arg;
-} Key;
-
-typedef struct {
-	const char *symbol;
-	void (*arrange)(Monitor *);
-} Layout;
-
-typedef struct Pertag Pertag;
-struct Monitor {
-	char ltsymbol[16];
-	float mfact;
-	int nmaster;
-	int num;
-	int by;               /* bar geometry */
-	int bby;	      /* bottom bar geometry */
-	int mx, my, mw, mh;   /* screen size */
-	int wx, wy, ww, wh;   /* window area  */
-	unsigned int seltags;
-	unsigned int sellt;
-	unsigned int tagset[2];
-	Bool showbar;
-	Bool topbar;
-	Bool showbottombar;
-	Bool bottombar;
-	Client *clients;
-	Client *sel;
-	Client *stack;
-	Monitor *next;
-	Window barwin;
-	Window bbarwin;
-	const Layout *lt[2];
-	Pertag *pertag;
-};
-
-typedef struct {
-	const char *class;
-	const char *instance;
-	const char *title;
-	unsigned int tags;
-	Bool isfloating;
-	int monitor;
-} Rule;
-
-typedef struct Systray   Systray;
-struct Systray {
-	Window win;
-	Client *icons;
-};
 
 /* function declarations */
 static void applyrules(Client *c);
@@ -290,9 +180,9 @@ static const char broken[] = "broken";
 //static char btext[256];
 static char stext[STATUS_BUF_LEN];
 static char btext[STATUS_BUF_LEN];
-static int screen;
+int screen;
 static int sw, sh;           /* X display screen geometry width, height */
-static int bh, blw = 0;      /* bar geometry */
+int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
 static void (*handler[LASTEvent]) (XEvent *) = {
@@ -314,11 +204,11 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 };
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
 static volatile Bool running = True;
-static Cursor cursor[CurLast];
-static Display *dpy;
+Cursor cursor[CurLast];
+Display *dpy;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
-static Window root;
+Window root;
 
 static char *exepath;
 
@@ -515,13 +405,17 @@ buttonpress(XEvent *e) {
 		}
 		else if(ev->x < x + blw)
 			click = ClkLtSymbol;
-		else if(ev->x > selmon->ww - TEXTW(stext))
-			click = ClkStatusText;
-		else
+		/*else if(ev->x > selmon->ww - TEXTW(stext))
+			click = ClkStatusText;*/
+		else {
 			click = ClkWinTitle;
-		for(in=indicator; in; in=in->next) {
-			if(ev->x>=in->x&&ev->x<in->x+in->width)
-				in->mouse(in, ev->button);
+			for(in=indicator; in; in=in->next) {
+				if(ev->x>=in->x&&ev->x<in->x+in->width) {
+					in->mouse(in, ev->button);
+					updatestatus();
+					click = ClkStatusText;
+				}
+			}
 		}
 	}
 	else if((c = wintoclient(ev->window))) {
@@ -1650,10 +1544,11 @@ run(void) {
 		FD_SET(x11_fd, &in_fds);
 		tv.tv_usec = 500000;
 		tv.tv_sec = 0;
-
+		
+		updatestatus();
 		// Wait for X Event or a Timer
 		if(!select(x11_fd+1, &in_fds, 0, 0, &tv))
-			updatestatus();
+			continue;
 
 		// Handle XEvents and flush the input 
 		while(XPending(dpy)) {
@@ -3195,5 +3090,6 @@ void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *
 	ii->text[0]=0;
 	ii->x=0;
 	ii->width=0;
+	ii->data=NULL;
 	ii->next=NULL;
 }

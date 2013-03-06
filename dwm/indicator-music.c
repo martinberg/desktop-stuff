@@ -1,6 +1,8 @@
 #include <dbus/dbus.h>
 #include "dwm.h"
 
+#define MENU_WIDTH 64
+
 static const char *mpris="org.mpris.MediaPlayer2.";
 static struct {
 	DBusConnection* connection;
@@ -15,6 +17,8 @@ static struct {
 	"org.freedesktop.DBus",
 	"/org/freedesktop/DBus",
 };
+
+static Window menu;
 
 static struct MEDIAPLAYER {
 	const char *id;
@@ -58,6 +62,32 @@ static void mediaplayer_deregister_all() {
 		free(mediaplayer);
 		mediaplayer=mp_next;
 	}
+}
+
+static void menu_open(Indicator *indicator) {
+	int i;
+	struct MEDIAPLAYER *mp;
+	XSetWindowAttributes wa={
+		.override_redirect=True,
+		.background_pixmap=ParentRelative,
+		.event_mask=ButtonPressMask|ExposureMask,
+	};
+	if(menu) {
+		XRaiseWindow(dpy, menu);
+		return;
+	}
+	for(mp=mediaplayer, i=0; mp; mp=mp->next, i++);
+	menu=XCreateWindow(dpy, root,
+		indicator->x-MENU_WIDTH+indicator->width, bh, MENU_WIDTH, bh*2*i, 0, DefaultDepth(dpy, screen),
+		CopyFromParent, DefaultVisual(dpy, screen),
+		CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa
+	);
+	XDefineCursor(dpy, menu, cursor[CurNormal]);
+	XMapRaised(dpy, menu);
+}
+static void menu_close() {
+	XUnmapWindow(dpy, menu);
+	XDestroyWindow(dpy, menu);
 }
 
 int indicator_music_init(Indicator *indicator) {
@@ -135,6 +165,20 @@ void indicator_music_update(Indicator *indicator) {
 }
 
 void indicator_music_mouse(Indicator *indicator, unsigned int button) {
-	printf("clicked music indicator\n");
-	indicator->active=!indicator->active;
+	switch(button) {
+		case Button1:
+		case Button3:
+			printf("clicked music indicator\n");
+			if((indicator->active=!indicator->active))
+				menu_open(indicator);
+			else
+				menu_close();
+			break;
+		case Button4:
+			printf("scroll up\n");
+			break;
+		case Button5:
+			printf("scroll up\n");
+			break;
+	}
 }

@@ -18,6 +18,8 @@ void indicator_time_update(Indicator *indicator) {
 }
 
 void indicator_time_mouse(Indicator *indicator, unsigned int button) {
-	printf("clicked time indicator\n");
-	indicator->active=!indicator->active;
+	if(button==Button1||button==Button3) {
+		printf("clicked time indicator\n");
+		indicator->active=!indicator->active;
+	}
 }
