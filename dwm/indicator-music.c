@@ -18,7 +18,11 @@ static struct {
 	"/org/freedesktop/DBus",
 };
 
-static Window menu;
+static struct {
+	Window window;
+	GC gc;
+	int x, y, w, h;
+} menu;
 
 static struct MEDIAPLAYER {
 	const char *id;
@@ -67,28 +71,97 @@ static void mediaplayer_deregister_all() {
 static void menu_open(Indicator *indicator) {
 	int i;
 	struct MEDIAPLAYER *mp;
-	XSetWindowAttributes wa={
+	/*XSetWindowAttributes wa={
 		.override_redirect=True,
 		//.background_pixel=XBlackPixel(dpy, screen),
 		.event_mask=ButtonPressMask|ExposureMask,
-	};
+	};*/
 	for(mp=mediaplayer, i=0; mp; mp=mp->next, i++);
 	/*menu=XCreateWindow(dpy, root,
 		0, bh, MENU_WIDTH, bh*2*i, 0, DefaultDepth(dpy, screen),
 		InputOutput, DefaultVisual(dpy, screen),
 		CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa
 	);*/
-	menu=XCreateSimpleWindow(dpy, root, 
-		selmon->mx+indicator->x-MENU_WIDTH+indicator->width, bh, MENU_WIDTH, bh*2*(i+1),
-		1, dc.norm[ColBorder].pixel, dc.norm[ColBG].pixel
+	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
+	menu.y=bh;
+	menu.w=MENU_WIDTH;
+	menu.h=bh*2*(i+1);
+	menu.window=XCreateSimpleWindow(dpy, root, 
+		menu.x, menu.y, menu.w, menu.h,
+		1, dc.sel[ColBorderFloat].pixel, dc.norm[ColBG].pixel
 	);
-	XSelectInput(dpy, menu, ExposureMask);
-	XDefineCursor(dpy, menu, cursor[CurNormal]);
-	XMapRaised(dpy, menu);
+	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
+	XSelectInput(dpy, menu.window, ExposureMask);
+	XDefineCursor(dpy, menu.window, cursor[CurNormal]);
+	//indicator_music_expose(indicator, menu);
+	XMapRaised(dpy, menu.window);
 }
 static void menu_close() {
-	XUnmapWindow(dpy, menu);
-	XDestroyWindow(dpy, menu);
+	XFreeGC(dpy, menu.gc);
+	XUnmapWindow(dpy, menu.window);
+	XDestroyWindow(dpy, menu.window);
+}
+
+static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
+	char buf[256];
+	int i, texth, len, olen;
+	XftDraw *d;
+
+	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
+	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
+	if(!text)
+		return;
+	olen=strlen(text);
+	texth=dc.font.ascent + dc.font.descent;
+	y+=(h/2)-(texth/2)+dc.font.ascent;
+	x+=(texth/2);
+	/* shorten text if necessary */
+	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
+	if(!len)
+		return;
+	memcpy(buf, text, len);
+	if(len<olen)
+		for(i=len; i&&i>len-3; buf[--i]='.');
+
+	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
+	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
+	XftDrawDestroy(d);
+}
+
+static void check_bus() {
+	DBusMessage* msg;
+	DBusMessageIter args;
+	char *player, *oldowner, *newowner;
+	
+	while(1) {
+		dbus_connection_read_write(dbus.connection, 0);
+
+		if(!(msg=dbus_connection_pop_message(dbus.connection)))
+			break;
+		
+		if(dbus_message_is_signal(msg, dbus.interface, "NameOwnerChanged")) {
+			if(!(dbus_message_iter_init(msg, &args)&&dbus_message_iter_get_arg_type(&args)==DBUS_TYPE_STRING))
+				continue;
+			
+			dbus_message_iter_get_basic(&args, &player);
+			dbus_message_iter_next(&args);
+			dbus_message_iter_get_basic(&args, &oldowner);
+			dbus_message_iter_next(&args);
+			dbus_message_iter_get_basic(&args, &newowner);
+			if(!strncmp(player, mpris, strlen(mpris))) {
+				if(!strlen(oldowner)&&strlen(newowner)) {
+					printf("Registered mediaplayer %s\nSending command to start playing music\n", player+strlen(mpris));
+					mediaplayer_register(player+strlen(mpris));
+				}
+				if(!strlen(newowner)) {
+					printf("Deregistered mediaplayer %s (program exited)\n", player+strlen(mpris));
+					mediaplayer_deregister(player+strlen(mpris));
+				}
+			}
+		}
+
+		dbus_message_unref(msg);
+	}
 }
 
 int indicator_music_init(Indicator *indicator) {
@@ -162,13 +235,25 @@ int indicator_music_init(Indicator *indicator) {
 }
 
 void indicator_music_update(Indicator *indicator) {
+	check_bus();
 	sprintf(indicator->text, " ♫ %s ", "100%");
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
-	if(window!=menu)
+	int y=0;
+	struct MEDIAPLAYER *mp;
+	if(window!=menu.window)
 		return;
 	printf("expose\n");
+	
+	XSetForeground(dpy, menu.gc, dc.norm[ColFG].pixel);
+	//XFillRectangle(dpy, window, menu.gc, 10, 10, 20, 20);
+	draw_text(0, 0, menu.w, bh, dc.norm, "Mute");
+	draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
+	y=2*bh;
+	for(mp=mediaplayer; mp; mp=mp->next, y+=bh*2)
+		draw_text(0, y, menu.w, bh, dc.norm, mp->id);
+	XFlush(dpy);
 }
 
 void indicator_music_mouse(Indicator *indicator, unsigned int button) {
