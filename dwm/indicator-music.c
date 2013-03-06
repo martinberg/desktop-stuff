@@ -1,4 +1,5 @@
 #include <dbus/dbus.h>
+#include <alsa/asoundlib.h>
 #include "dwm.h"
 
 #define MENU_WIDTH 128
@@ -16,6 +17,24 @@ static struct {
 	0,
 	"org.freedesktop.DBus",
 	"/org/freedesktop/DBus",
+};
+
+static struct {
+	snd_mixer_t *handle;
+	snd_mixer_elem_t* elem;
+	snd_mixer_selem_id_t *sid;
+	const char* card;
+	const char* mix_name;
+	int mix_index;
+	long minv;
+	long maxv;
+} alsa={
+	NULL,
+	NULL,
+	NULL,
+	"default",
+	"Master",
+	0,
 };
 
 static struct {
@@ -164,6 +183,26 @@ static void check_bus() {
 	}
 }
 
+static int volume_get() {
+	long volume;
+	if(snd_mixer_selem_get_playback_volume(alsa.elem, 0, &volume)<0)
+		return -1;
+	
+	volume-=alsa.minv;
+	return (100*volume)/(alsa.maxv-alsa.minv);
+}
+
+static void volume_set(int volume) {
+	if(volume<0)
+		volume=0;
+	if(volume>100)
+		volume=100;
+	
+	volume=volume*(alsa.maxv-alsa.minv)/100+alsa.minv;
+	snd_mixer_selem_set_playback_volume(alsa.elem, 0, volume);
+	snd_mixer_selem_set_playback_volume(alsa.elem, 1, volume);
+}
+
 int indicator_music_init(Indicator *indicator) {
 	DBusMessage* msg;
 	DBusMessageIter args, element;
@@ -171,6 +210,7 @@ int indicator_music_init(Indicator *indicator) {
 	char *player;
 	int current_type;
 	
+	/*Init dbus*/
 	dbus_error_init(&dbus.error);
 	dbus.connection = dbus_bus_get(DBUS_BUS_SESSION, &dbus.error);
 	if(dbus_error_is_set(&dbus.error)) { 
@@ -231,12 +271,40 @@ int indicator_music_init(Indicator *indicator) {
 		return -1;
 	}
 	
+	/*init alsa*/
+	snd_mixer_selem_id_alloca(&alsa.sid);
+	snd_mixer_selem_id_set_index(alsa.sid, alsa.mix_index);
+	snd_mixer_selem_id_set_name(alsa.sid, alsa.mix_name);
+	
+	if((snd_mixer_open(&alsa.handle, 0))<0)
+		return -1;
+	if((snd_mixer_attach(alsa.handle, alsa.card))<0) {
+		snd_mixer_close(alsa.handle);
+		return -1;
+	}
+	if((snd_mixer_selem_register(alsa.handle, NULL, NULL))<0) {
+		snd_mixer_close(alsa.handle);
+		return -1;
+	}
+	if(snd_mixer_load(alsa.handle)<0) {
+		snd_mixer_close(alsa.handle);
+		return -1;
+	}
+	if(!(alsa.elem=snd_mixer_find_selem(alsa.handle, alsa.sid))) {
+		snd_mixer_close(alsa.handle);
+		return -1;
+	}
+	
+	snd_mixer_selem_get_playback_volume_range (alsa.elem, &alsa.minv, &alsa.maxv);
+	fprintf(stderr, "Volume range <%li,%li>\n", alsa.minv, alsa.maxv);
+	
 	return 0;
 }
 
 void indicator_music_update(Indicator *indicator) {
 	check_bus();
-	sprintf(indicator->text, " ♫ %s ", "100%");
+	snd_mixer_handle_events(alsa.handle);
+	sprintf(indicator->text, " ♫ %i%% ", volume_get());
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
@@ -267,10 +335,12 @@ void indicator_music_mouse(Indicator *indicator, unsigned int button) {
 				menu_close();
 			break;
 		case Button4:
-			printf("scroll up\n");
+			snd_mixer_handle_events(alsa.handle);
+			volume_set(volume_get()+10);
 			break;
 		case Button5:
-			printf("scroll up\n");
+			snd_mixer_handle_events(alsa.handle);
+			volume_set(volume_get()-10);
 			break;
 	}
 }
