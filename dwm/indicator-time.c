@@ -20,8 +20,12 @@ void indicator_time_update(Indicator *indicator) {
 void indicator_time_expose(Indicator *indicator, Window window) {
 }
 
-void indicator_time_mouse(Indicator *indicator, unsigned int button) {
-	if(button==Button1||button==Button3) {
+Bool indicator_time_haswindow(Indicator *indicator, Window window) {
+	return False;
+}
+
+void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+	if(ev->button==Button1||ev->button==Button3) {
 		printf("clicked time indicator\n");
 		indicator->active=!indicator->active;
 	}

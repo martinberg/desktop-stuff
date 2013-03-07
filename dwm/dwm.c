@@ -130,13 +130,14 @@ static void updatewmhints(Client *c);
 static void view(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
+static Indicator *wintoindicator(Window w);
 static Client *wintosystrayicon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 
-void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*expose)(Indicator *indicator, Window window), void (*mouse)(Indicator *indicator, unsigned int button));
+void indicator_add(int (*init)(Indicator *), void (*update)(Indicator *), void (*expose)(Indicator *, Window), Bool (*haswindow)(Indicator *, Window), void (*mouse)(Indicator *, XButtonPressedEvent *));
 
 /* variables */
 static Systray *systray = NULL;
@@ -192,23 +193,31 @@ struct Pertag {
 };
 
 /* compile-time check if all tags fit into an unsigned int bit array. */
-struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
+struct NumTags {
+	char limitexceeded[LENGTH(tags) > 31 ? -1 : 1];
+};
 
 //////////////////////////// la11111
-enum { ansi_reset, ansi_fg, ansi_bg, ansi_text, ansi_last};
+enum {
+	ansi_reset,
+	ansi_fg,
+	ansi_bg,
+	ansi_text,
+	ansi_last,
+};
 
 struct ansi_node {
     int type;
-    char * color;
-    char * text; 
+    char *color;
+    char *text; 
     struct ansi_node *next;
 };
 
 static void drawcoloredtext(const char *text, XftColor fg, XftColor bg);
 static void ParseAnsiEsc(char * seq, char buffer[]);
 static void GetAnsiColor(int escapecode, char buffer[]);
-static int countchars(char c, char * buf);
-static struct ansi_node * addnode(struct ansi_node *head, int type, char * color, char * text);
+static int countchars(char c, char *buf);
+static struct ansi_node *addnode(struct ansi_node *head, int type, char *color, char *text);
 static void destroy_llist(struct ansi_node *head);
 static void drawstatus(Monitor *m);
 ///////////////////////////////
@@ -378,7 +387,7 @@ buttonpress(XEvent *e) {
 			click = ClkWinTitle;
 			for(in=indicator; in; in=in->next) {
 				if(ev->x>=in->x&&ev->x<in->x+in->width) {
-					in->mouse(in, ev->button);
+					in->mouse(in, ev);
 					updatestatus();
 					click = ClkStatusText;
 				}
@@ -388,6 +397,10 @@ buttonpress(XEvent *e) {
 	else if((c = wintoclient(ev->window))) {
 		focus(c);
 		click = ClkClientWin;
+	}
+	else if((in=wintoindicator(ev->window))) {
+		in->mouse(in, ev);
+		return;
 	}
 	for(i = 0; i < LENGTH(buttons); i++)
 		if(click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
@@ -1755,8 +1768,8 @@ setup(void) {
 	grabkeys();
 	exepath=get_dwm_path();
 	
-	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_mouse);
-	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_mouse);
+	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_haswindow, indicator_time_mouse);
+	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_haswindow, indicator_music_mouse);
 	
 	for(in=&indicator; *in; in=&((*in)->next))
 		if((*in)->init)
@@ -2422,6 +2435,14 @@ wintoclient(Window w) {
 	return NULL;
 }
 
+Indicator *wintoindicator(Window w) {
+	Indicator *in;
+	for(in=indicator; in; in=in->next)
+		if(in->haswindow(in, w))
+			return in;
+	return NULL;
+}
+
 Monitor *
 wintomon(Window w) {
 	int x, y;
@@ -3050,7 +3071,7 @@ void self_restart(const Arg *arg) {
 	execv(argv[0], argv);
 }
 
-void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *indicator), void (*expose)(Indicator *indicator, Window window), void (*mouse)(Indicator *indicator, unsigned int button)) {
+void indicator_add(int (*init)(Indicator *), void (*update)(Indicator *), void (*expose)(Indicator *, Window), Bool (*haswindow)(Indicator *, Window), void (*mouse)(Indicator *, XButtonPressedEvent *)) {
 	Indicator **i, *ii;
 	for(i=&indicator; *i; i=&((*i)->next));
 	*i=ii=malloc(sizeof(Indicator));
@@ -3058,6 +3079,7 @@ void indicator_add(int (*init)(Indicator *indicator), void (*update)(Indicator *
 	ii->active=False;
 	ii->update=update;
 	ii->expose=expose;
+	ii->haswindow=haswindow;
 	ii->mouse=mouse;
 	ii->text[0]=0;
 	ii->x=0;

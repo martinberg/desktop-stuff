@@ -165,11 +165,12 @@ static void menu_open(Indicator *indicator) {
 		1, dc.sel[ColBorderFloat].pixel, dc.norm[ColBG].pixel
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
-	XSelectInput(dpy, menu.window, ExposureMask);
+	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask);
 	XDefineCursor(dpy, menu.window, cursor[CurNormal]);
 	//indicator_music_expose(indicator, menu);
 	XMapRaised(dpy, menu.window);
 }
+
 static void menu_close() {
 	XFreeGC(dpy, menu.gc);
 	XUnmapWindow(dpy, menu.window);
@@ -224,7 +225,7 @@ static void check_bus() {
 			dbus_message_iter_get_basic(&args, &newowner);
 			if(!strncmp(player, mpris, strlen(mpris))) {
 				if(!strlen(oldowner)&&strlen(newowner)) {
-					printf("Registered mediaplayer %s\nSending command to start playing music\n", player+strlen(mpris));
+					printf("Registered mediaplayer:\n");
 					mediaplayer_register(player+strlen(mpris));
 				}
 				if(!strlen(newowner)) {
@@ -378,8 +379,16 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 	XFlush(dpy);
 }
 
-void indicator_music_mouse(Indicator *indicator, unsigned int button) {
-	switch(button) {
+Bool indicator_music_haswindow(Indicator *in, Window window) {
+	return menu.window==window?True:False;
+}
+
+void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+	if(ev->window==menu.window) {
+		printf("lolololol\n");
+		return;
+	}
+	switch(ev->button) {
 		case Button1:
 		case Button3:
 			printf("clicked music indicator\n");
