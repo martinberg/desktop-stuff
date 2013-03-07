@@ -259,6 +259,18 @@ static void volume_set(int volume) {
 	snd_mixer_selem_set_playback_volume(alsa.elem, 1, volume);
 }
 
+static void mute_set(Bool mute) {
+	if(snd_mixer_selem_has_playback_switch(alsa.elem))
+		snd_mixer_selem_set_playback_switch_all(alsa.elem, !mute);
+}
+
+static Bool mute_get() {
+	int active=1;
+	if(snd_mixer_selem_has_playback_switch(alsa.elem))
+		snd_mixer_selem_get_playback_switch(alsa.elem, 0, &active);
+	return active?False:True;
+}
+
 int indicator_music_init(Indicator *indicator) {
 	DBusMessage* msg;
 	DBusMessageIter args, element;
@@ -363,16 +375,19 @@ void indicator_music_update(Indicator *indicator) {
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
-	int y=0;
+	int y=0, sliderw=menu.w-10*2;
 	struct MEDIAPLAYER *mp;
 	if(window!=menu.window)
 		return;
-	printf("expose\n");
+	snd_mixer_handle_events(alsa.handle);
 	
+	draw_text(0, 0, menu.w, bh, dc.norm, mute_get()?"Unmute":"Mute");
+	XSetForeground(dpy, menu.gc, dc.norm[ColBG].pixel);
+	XFillRectangle(dpy, window, menu.gc, 0, bh, menu.w, bh);
 	XSetForeground(dpy, menu.gc, dc.norm[ColFG].pixel);
-	//XFillRectangle(dpy, window, menu.gc, 10, 10, 20, 20);
-	draw_text(0, 0, menu.w, bh, dc.norm, "Mute");
-	draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
+	XDrawLine(dpy, window, menu.gc, 8, bh+bh/2, menu.w-8, bh+bh/2);
+	XFillRectangle(dpy, window, menu.gc, 10-2+sliderw*volume_get()/100, bh+2, 4, bh-4);
+	//draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
 	y=2*bh;
 	for(mp=mediaplayer; mp; mp=mp->next, y+=bh*2)
 		draw_text(0, y, menu.w, bh, dc.norm, mp->name?mp->name:mp->id);
@@ -385,18 +400,31 @@ Bool indicator_music_haswindow(Indicator *in, Window window) {
 
 void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	if(ev->window==menu.window) {
-		printf("lolololol\n");
+		int sliderw=menu.w-10*2;
+		int item=ev->y/bh;
+		//printf("pressed menu item %i\n", item);
+		if(item==0) {
+			snd_mixer_handle_events(alsa.handle);
+			mute_set(!mute_get());
+		} else if(item==1) {
+			if(ev->x>=10&&ev->x<menu.w-10) {
+				snd_mixer_handle_events(alsa.handle);
+				volume_set(100*(ev->x-10)/sliderw);
+			}
+		} else
+			return;
+		indicator_music_expose(indicator, ev->window);
+		
 		return;
 	}
 	switch(ev->button) {
 		case Button1:
 		case Button3:
-			printf("clicked music indicator\n");
 			if((indicator->active=!indicator->active))
 				menu_open(indicator);
 			else
 				menu_close();
-			break;
+			return;
 		case Button4:
 			snd_mixer_handle_events(alsa.handle);
 			volume_set(volume_get()+10);
@@ -406,4 +434,6 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			volume_set(volume_get()-10);
 			break;
 	}
+	if(indicator->active)
+		indicator_music_expose(indicator, menu.window);
 }
