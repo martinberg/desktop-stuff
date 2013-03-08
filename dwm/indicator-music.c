@@ -2,9 +2,27 @@
 #include <alsa/asoundlib.h>
 #include "dwm.h"
 
-#define MENU_WIDTH 128
+#define MENU_WIDTH 256
+#define TRACK_ELEMENT_LENGTH 128
 
-static const char *mpris="org.mpris.MediaPlayer2.";
+struct TRACK {
+	char artist[TRACK_ELEMENT_LENGTH];
+	char album[TRACK_ELEMENT_LENGTH];
+	char title[TRACK_ELEMENT_LENGTH];
+};
+
+static struct {
+	const char *interface;
+	const char *interface_player;
+	const char *base;
+	const char *object;
+} mpris={
+	"org.mpris.MediaPlayer2",
+	"org.mpris.MediaPlayer2.Player",
+	"org.mpris.MediaPlayer2.",
+	"/org/mpris/MediaPlayer2",
+};
+
 static struct {
 	DBusConnection* connection;
 	DBusError error;
@@ -43,6 +61,7 @@ static struct {
 	Window window;
 	GC gc;
 	int x, y, w, h;
+	int selected;
 } menu;
 
 static struct MEDIAPLAYER {
@@ -56,7 +75,6 @@ static void mediaplayer_register(const char *id) {
 	DBusMessageIter args, element;
 	DBusPendingCall* pending;
 	char *name=NULL;
-	static const char *interface="org.mpris.MediaPlayer2";
 	static const char *prop="Identity";
 	struct MEDIAPLAYER **mp;
 	char player[256];
@@ -65,11 +83,11 @@ static void mediaplayer_register(const char *id) {
 		if(!strcmp(id, (*mp)->id))
 			return;
 	}
-	sprintf(player, "%s.%s", interface, id);
-	if(!(msg=dbus_message_new_method_call(player, "/org/mpris/MediaPlayer2", dbus.interface_prop, "Get")))
+	sprintf(player, "%s.%s", mpris.interface, id);
+	if(!(msg=dbus_message_new_method_call(player, mpris.object, dbus.interface_prop, "Get")))
 		goto do_register;
 	dbus_message_iter_init_append(msg, &args);
-	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &interface)) {
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &mpris.interface)) {
 		dbus_message_unref(msg);
 		goto do_register;
 	}
@@ -101,11 +119,12 @@ static void mediaplayer_register(const char *id) {
 		goto do_register;
 	}
 	
-	dbus_message_iter_recurse (&args, &element);
+	dbus_message_iter_recurse(&args, &element);
 	dbus_message_iter_get_basic(&element, &name);
+	dbus_message_unref(msg);
 	
 	do_register:
-	printf(" * %s (%s)\n", player+strlen(mpris), name);
+	printf(" * %s (%s)\n", player+strlen(mpris.base), name);
 	*mp=malloc(sizeof(struct MEDIAPLAYER));
 	(*mp)->id=malloc(strlen(id)+1);
 	if(name) {
@@ -142,30 +161,111 @@ static void mediaplayer_deregister_all() {
 	}
 }
 
+static struct TRACK mediaplayer_get_track(const char *id) {
+	int current_type;
+	DBusMessage* msg;
+	DBusMessageIter args, array, dict, element, var, artist;
+	DBusPendingCall* pending;
+	static const char *prop="Metadata";
+	char player[256];
+	struct TRACK track={
+		"Unknown",
+		"Unknown",
+		"Unknown",
+	};
+	
+	sprintf(player, "%s%s", mpris.base, id);
+	if(!(msg=dbus_message_new_method_call(player, mpris.object, dbus.interface_prop, "Get")))
+		return track;
+	dbus_message_iter_init_append(msg, &args);
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &mpris.interface_player)) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &prop)) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	if(!pending) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	dbus_connection_flush(dbus.connection);
+	dbus_message_unref(msg);
+	dbus_pending_call_block(pending);
+	if (!(msg=dbus_pending_call_steal_reply(pending))) {
+		dbus_pending_call_unref(pending);
+		return track;
+	}
+	dbus_pending_call_unref(pending);
+	if(!dbus_message_iter_init(msg, &args)) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	
+	if(dbus_message_iter_get_arg_type(&args)!=DBUS_TYPE_VARIANT) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	dbus_message_iter_recurse(&args, &array);
+	if(dbus_message_iter_get_arg_type(&array)!=DBUS_TYPE_ARRAY) {
+		dbus_message_unref(msg);
+		return track;
+	}
+	
+	for(dbus_message_iter_recurse(&array, &dict); (current_type=dbus_message_iter_get_arg_type(&dict))!=DBUS_TYPE_INVALID; dbus_message_iter_next(&dict)) {
+		char *element_key, *element_value;
+		int element_type;
+		dbus_message_iter_recurse(&dict, &element);
+		if(dbus_message_iter_get_arg_type(&element)!=DBUS_TYPE_STRING)
+			continue;
+		
+		dbus_message_iter_get_basic(&element, &element_key);
+		dbus_message_iter_next(&element);
+		if(dbus_message_iter_get_arg_type(&element)!=DBUS_TYPE_VARIANT)
+			continue;
+		
+		dbus_message_iter_recurse(&element, &var);
+		element_type=dbus_message_iter_get_arg_type(&var);
+		if(element_type==DBUS_TYPE_STRING) {
+			dbus_message_iter_get_basic(&var, &element_value);
+			if(!strcmp(element_key, "xesam:album"))
+				snprintf(track.album, TRACK_ELEMENT_LENGTH, "%s", element_value);
+			else if(!strcmp(element_key, "xesam:title"))
+				snprintf(track.title, TRACK_ELEMENT_LENGTH, "%s", element_value);
+		} else if(element_type==DBUS_TYPE_ARRAY) {
+			/*just handle one artist for now*/
+			dbus_message_iter_recurse(&var, &artist);
+			if(dbus_message_iter_get_arg_type(&artist)!=DBUS_TYPE_STRING)
+				continue;
+			dbus_message_iter_get_basic(&artist, &element_value);
+			if(!strcmp(element_key, "xesam:artist"))
+				snprintf(track.artist, TRACK_ELEMENT_LENGTH, "%s", element_value);
+		}
+	}
+	dbus_message_unref(msg);
+	return track;
+}
+
 static void menu_open(Indicator *indicator) {
 	int i;
 	struct MEDIAPLAYER *mp;
-	/*XSetWindowAttributes wa={
-		.override_redirect=True,
-		//.background_pixel=XBlackPixel(dpy, screen),
-		.event_mask=ButtonPressMask|ExposureMask,
-	};*/
 	for(mp=mediaplayer, i=0; mp; mp=mp->next, i++);
-	/*menu=XCreateWindow(dpy, root,
-		0, bh, MENU_WIDTH, bh*2*i, 0, DefaultDepth(dpy, screen),
-		InputOutput, DefaultVisual(dpy, screen),
-		CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa
-	);*/
+	menu.selected=-1;
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
 	menu.y=bh;
 	menu.w=MENU_WIDTH;
-	menu.h=bh*2*(i+1);
+	menu.h=bh*2+bh*4*i;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
 		1, dc.sel[ColBorderFloat].pixel, dc.norm[ColBG].pixel
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
-	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask);
+	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
 	XDefineCursor(dpy, menu.window, cursor[CurNormal]);
 	//indicator_music_expose(indicator, menu);
 	XMapRaised(dpy, menu.window);
@@ -223,14 +323,14 @@ static void check_bus() {
 			dbus_message_iter_get_basic(&args, &oldowner);
 			dbus_message_iter_next(&args);
 			dbus_message_iter_get_basic(&args, &newowner);
-			if(!strncmp(player, mpris, strlen(mpris))) {
+			if(!strncmp(player, mpris.base, strlen(mpris.base))) {
 				if(!strlen(oldowner)&&strlen(newowner)) {
 					printf("Registered mediaplayer:\n");
-					mediaplayer_register(player+strlen(mpris));
+					mediaplayer_register(player+strlen(mpris.base));
 				}
 				if(!strlen(newowner)) {
-					printf("Deregistered mediaplayer %s (program exited)\n", player+strlen(mpris));
-					mediaplayer_deregister(player+strlen(mpris));
+					printf("Deregistered mediaplayer %s (program exited)\n", player+strlen(mpris.base));
+					mediaplayer_deregister(player+strlen(mpris.base));
 				}
 			}
 		}
@@ -317,16 +417,14 @@ int indicator_music_init(Indicator *indicator) {
 		return -1;
 	}
 	
-	dbus_message_iter_recurse (&args, &element);
 	printf("Found media players:\n");
-	while((current_type=dbus_message_iter_get_arg_type(&element))!=DBUS_TYPE_INVALID) {
+	for(dbus_message_iter_recurse(&args, &element); (current_type=dbus_message_iter_get_arg_type(&element))!=DBUS_TYPE_INVALID; dbus_message_iter_next(&element)) {
 		if(current_type!=DBUS_TYPE_STRING)
 			continue;
 		dbus_message_iter_get_basic(&element, &player);
-		if(!strncmp(player, mpris, strlen(mpris))) {
-			mediaplayer_register(player+strlen(mpris));
+		if(!strncmp(player, mpris.base, strlen(mpris.base))) {
+			mediaplayer_register(player+strlen(mpris.base));
 		}
-		dbus_message_iter_next(&element);
 	}
 	dbus_message_unref(msg);
 	
@@ -371,26 +469,35 @@ int indicator_music_init(Indicator *indicator) {
 void indicator_music_update(Indicator *indicator) {
 	check_bus();
 	snd_mixer_handle_events(alsa.handle);
-	sprintf(indicator->text, " ♫ %i%% ", volume_get());
+	if(mute_get())
+		sprintf(indicator->text, " ♫ -- ");
+	else
+		sprintf(indicator->text, " ♫ %i%% ", volume_get());
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
+	int i;
 	int y=0, sliderw=menu.w-10*2;
 	struct MEDIAPLAYER *mp;
 	if(window!=menu.window)
 		return;
 	snd_mixer_handle_events(alsa.handle);
 	
-	draw_text(0, 0, menu.w, bh, dc.norm, mute_get()?"Unmute":"Mute");
-	XSetForeground(dpy, menu.gc, dc.norm[ColBG].pixel);
+	draw_text(0, 0, menu.w, bh, menu.selected==0?dc.sel:dc.norm, mute_get()?"Unmute":"Mute");
+	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColBG].pixel);
 	XFillRectangle(dpy, window, menu.gc, 0, bh, menu.w, bh);
-	XSetForeground(dpy, menu.gc, dc.norm[ColFG].pixel);
+	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColFG].pixel);
 	XDrawLine(dpy, window, menu.gc, 8, bh+bh/2, menu.w-8, bh+bh/2);
 	XFillRectangle(dpy, window, menu.gc, 10-2+sliderw*volume_get()/100, bh+2, 4, bh-4);
 	//draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
 	y=2*bh;
-	for(mp=mediaplayer; mp; mp=mp->next, y+=bh*2)
-		draw_text(0, y, menu.w, bh, dc.norm, mp->name?mp->name:mp->id);
+	for(mp=mediaplayer, i=2; mp; mp=mp->next, y+=bh*4, i+=4) {
+		struct TRACK track=mediaplayer_get_track(mp->id);
+		draw_text(0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id);
+		draw_text(8, y+bh, menu.w, bh, dc.norm, track.title);
+		draw_text(8, y+bh*2, menu.w, bh, dc.norm, track.artist);
+		draw_text(8, y+bh*3, menu.w, bh, dc.norm, track.album);
+	}
 	XFlush(dpy);
 }
 
@@ -399,6 +506,20 @@ Bool indicator_music_haswindow(Indicator *in, Window window) {
 }
 
 void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+	if(!ev) {
+		Window w;
+		int tmp;
+		int x, y;
+		unsigned int mask;
+		XQueryPointer(dpy, menu.window, &w, &w, &tmp, &tmp, &x, &y, &mask);
+		
+		menu.selected=-1;
+		if(x>=0&&y>=0&&x<menu.w&&y<menu.h)
+			menu.selected=y/bh;
+		
+		indicator_music_expose(indicator, menu.window);
+		return;
+	}
 	if(ev->window==menu.window) {
 		int sliderw=menu.w-10*2;
 		int item=ev->y/bh;
@@ -411,8 +532,9 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 				snd_mixer_handle_events(alsa.handle);
 				volume_set(100*(ev->x-10)/sliderw);
 			}
-		} else
+		} else {
 			return;
+		}
 		indicator_music_expose(indicator, ev->window);
 		
 		return;

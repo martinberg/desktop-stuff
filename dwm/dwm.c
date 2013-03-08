@@ -1244,8 +1244,13 @@ void
 motionnotify(XEvent *e) {
 	static Monitor *mon = NULL;
 	Monitor *m;
+	Indicator *in;
 	XMotionEvent *ev = &e->xmotion;
-
+	
+	if((in=wintoindicator(ev->window))) {
+		in->mouse(in, NULL);
+		return;
+	}
 	if(ev->window != root)
 		return;
 	if((m = recttomon(ev->x_root, ev->y_root, 1, 1)) != mon && mon) {
