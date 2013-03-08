@@ -124,7 +124,6 @@ static void mediaplayer_register(const char *id) {
 	dbus_message_unref(msg);
 	
 	do_register:
-	printf(" * %s (%s)\n", player+strlen(mpris.base), name);
 	*mp=malloc(sizeof(struct MEDIAPLAYER));
 	(*mp)->id=malloc(strlen(id)+1);
 	if(name) {
@@ -251,6 +250,17 @@ static struct TRACK mediaplayer_get_track(const char *id) {
 	return track;
 }
 
+static void mediaplayer_raise(const char *id) {
+	DBusMessage *msg;
+	char player[256];
+	sprintf(player, "%s%s", mpris.base, id);
+	msg=dbus_message_new_method_call(player, mpris.object, mpris.interface, "Raise");
+	dbus_connection_send(dbus.connection, msg, &dbus.serial);
+	dbus_connection_flush(dbus.connection);
+	dbus_message_unref(msg);
+	dbus.serial++;
+}
+
 static void menu_open(Indicator *indicator) {
 	int i;
 	struct MEDIAPLAYER *mp;
@@ -267,7 +277,6 @@ static void menu_open(Indicator *indicator) {
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
 	XDefineCursor(dpy, menu.window, cursor[CurNormal]);
-	//indicator_music_expose(indicator, menu);
 	XMapRaised(dpy, menu.window);
 }
 
@@ -324,14 +333,10 @@ static void check_bus() {
 			dbus_message_iter_next(&args);
 			dbus_message_iter_get_basic(&args, &newowner);
 			if(!strncmp(player, mpris.base, strlen(mpris.base))) {
-				if(!strlen(oldowner)&&strlen(newowner)) {
-					printf("Registered mediaplayer:\n");
+				if(!strlen(oldowner)&&strlen(newowner))
 					mediaplayer_register(player+strlen(mpris.base));
-				}
-				if(!strlen(newowner)) {
-					printf("Deregistered mediaplayer %s (program exited)\n", player+strlen(mpris.base));
+				if(!strlen(newowner))
 					mediaplayer_deregister(player+strlen(mpris.base));
-				}
 			}
 		}
 
@@ -417,7 +422,6 @@ int indicator_music_init(Indicator *indicator) {
 		return -1;
 	}
 	
-	printf("Found media players:\n");
 	for(dbus_message_iter_recurse(&args, &element); (current_type=dbus_message_iter_get_arg_type(&element))!=DBUS_TYPE_INVALID; dbus_message_iter_next(&element)) {
 		if(current_type!=DBUS_TYPE_STRING)
 			continue;
@@ -461,8 +465,6 @@ int indicator_music_init(Indicator *indicator) {
 	}
 	
 	snd_mixer_selem_get_playback_volume_range (alsa.elem, &alsa.minv, &alsa.maxv);
-	fprintf(stderr, "Volume range <%li,%li>\n", alsa.minv, alsa.maxv);
-	
 	return 0;
 }
 
@@ -489,9 +491,8 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColFG].pixel);
 	XDrawLine(dpy, window, menu.gc, 8, bh+bh/2, menu.w-8, bh+bh/2);
 	XFillRectangle(dpy, window, menu.gc, 10-2+sliderw*volume_get()/100, bh+2, 4, bh-4);
-	//draw_text(0, bh, menu.w, bh, dc.norm, "volume slider");
-	y=2*bh;
-	for(mp=mediaplayer, i=2; mp; mp=mp->next, y+=bh*4, i+=4) {
+	
+	for(mp=mediaplayer, y=2*bh, i=2; mp; mp=mp->next, y+=bh*4, i+=4) {
 		struct TRACK track=mediaplayer_get_track(mp->id);
 		draw_text(0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id);
 		draw_text(8, y+bh, menu.w, bh, dc.norm, track.title);
@@ -529,7 +530,8 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	if(ev->window==menu.window) {
 		int sliderw=menu.w-10*2;
 		int item=ev->y/bh;
-		//printf("pressed menu item %i\n", item);
+		struct MEDIAPLAYER *mp;
+		
 		if(item==0) {
 			snd_mixer_handle_events(alsa.handle);
 			mute_set(!mute_get());
@@ -539,6 +541,15 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 				volume_set(100*(ev->x-10)/sliderw);
 			}
 		} else {
+			int i;
+			for(mp=mediaplayer, i=2; mp; mp=mp->next, i+=4)
+				if(i==item) {
+					mediaplayer_raise(mp->id);
+					indicator->active=False;
+					menu_close();
+					break;
+				}
+			
 			return;
 		}
 		indicator_music_expose(indicator, ev->window);
@@ -555,11 +566,11 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			return;
 		case Button4:
 			snd_mixer_handle_events(alsa.handle);
-			volume_set(volume_get()+10);
+			volume_set(volume_get()+5);
 			break;
 		case Button5:
 			snd_mixer_handle_events(alsa.handle);
-			volume_set(volume_get()-10);
+			volume_set(volume_get()-5);
 			break;
 	}
 	if(indicator->active)
