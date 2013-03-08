@@ -514,8 +514,14 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 		XQueryPointer(dpy, menu.window, &w, &w, &tmp, &tmp, &x, &y, &mask);
 		
 		menu.selected=-1;
-		if(x>=0&&y>=0&&x<menu.w&&y<menu.h)
+		if(x>=0&&y>=0&&x<menu.w&&y<menu.h) {
+			if(mask&0x100&&y/bh==1) {
+				int sliderw=menu.w-10*2;
+				snd_mixer_handle_events(alsa.handle);
+				volume_set(100*(x-10)/sliderw);
+			}
 			menu.selected=y/bh;
+		}
 		
 		indicator_music_expose(indicator, menu.window);
 		return;
