@@ -591,13 +591,20 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 	
 	for(mp=mediaplayer, y=2*bh, i=2; mp; mp=mp->next, y+=bh*5, i+=5) {
 		struct TRACK track=mediaplayer_get_track(mp->id);
+		enum PLAYBACK_STATUS status=mediaplayer_get_status(mp->id);
 		draw_text(0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id);
-		draw_text(8, y+bh, menu.w, bh, dc.norm, track.title);
-		draw_text(8, y+bh*2, menu.w, bh, dc.norm, track.artist);
-		draw_text(8, y+bh*3, menu.w, bh, dc.norm, track.album);
+		
+		if(status==PLAYBACK_STATUS_STOPPED) {
+			XFillRectangle(dpy, window, menu.gc, 0, y+bh, menu.w, bh*3);
+			draw_text(8, y+bh*2, menu.w, bh, dc.norm, "Playback stopped");
+		} else {
+			draw_text(8, y+bh, menu.w, bh, dc.norm, track.title);
+			draw_text(8, y+bh*2, menu.w, bh, dc.norm, track.artist);
+			draw_text(8, y+bh*3, menu.w, bh, dc.norm, track.album);
+		}
 		
 		draw_text(menu.w/2-BUTTON_W/2-BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==0?dc.sel:dc.norm, "▮◀");
-		draw_text(menu.w/2-BUTTON_W/2, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==1?dc.sel:dc.norm, mediaplayer_get_status(mp->id)==PLAYBACK_STATUS_PLAYING?"▮▮":" ▶");
+		draw_text(menu.w/2-BUTTON_W/2, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==1?dc.sel:dc.norm, status==PLAYBACK_STATUS_PLAYING?"▮▮":" ▶");
 		draw_text(menu.w/2-BUTTON_W/2+BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==2?dc.sel:dc.norm, "▶▮");
 	}
 	XFlush(dpy);
@@ -650,8 +657,10 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 					indicator->active=False;
 					menu_close();
 					break;
-				} else if(item==i+4&&menu.button>=0)
+				} else if(item==i+4&&menu.button>=0) {
 					mediaplayer_action(mp->id, menu.button);
+					indicator_music_expose(indicator, ev->window);
+				}
 			
 			return;
 		}
