@@ -25,8 +25,9 @@ Bool indicator_time_haswindow(Indicator *indicator, Window window) {
 }
 
 void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
-	if(ev->button==Button1||ev->button==Button3) {
+	/*pop up calendar*/
+	/*if(ev->button==Button1||ev->button==Button3) {
 		printf("clicked time indicator\n");
 		indicator->active=!indicator->active;
-	}
+	}*/
 }

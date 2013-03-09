@@ -2845,7 +2845,9 @@ drawstatus(Monitor *m) {
 		//dc.x = x_orig;
 		destroy_llist(head);
 	}
-	dc.x = m->ww - totalwidth;
+	dc.x = m->ww - totalwidth - delimwidth;
+	dc.w=delimwidth;
+	drawcoloredtext(delim, dc.norm[ColFG], dc.norm[ColBG]);
 }
 
 int //count occurrences of c in buf 
