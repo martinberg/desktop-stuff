@@ -343,9 +343,9 @@ static void mediaplayer_raise(const char *id) {
 static void mediaplayer_action(const char *id, enum MEDIAPLAYER_ACTION action) {
 	DBusMessage *msg;
 	static const char *actions[]={
-		"Next",
-		"PlayPause",
 		"Previous",
+		"PlayPause",
+		"Next",
 		"Play",
 		"Pause",
 	};
