@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = dwm.c indicator-time.c indicator-music.c
+SRC = dwm.c indicator-time.c indicator-music.c indicator-disk.c
 OBJ = ${SRC:.c=.o}
 
 all: options dwm

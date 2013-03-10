@@ -1776,6 +1776,7 @@ setup(void) {
 	
 	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_haswindow, indicator_time_mouse);
 	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_haswindow, indicator_music_mouse);
+	indicator_add(indicator_disk_init, indicator_disk_update, indicator_disk_expose, indicator_disk_haswindow, indicator_disk_mouse);
 	
 	for(in=&indicator; *in; in=&((*in)->next))
 		if((*in)->init)

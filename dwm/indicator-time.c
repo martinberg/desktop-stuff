@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "dwm.h"
 
 int indicator_time_init(Indicator *indicator) {
@@ -14,7 +16,6 @@ void indicator_time_update(Indicator *indicator) {
 
 	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
 	sprintf(indicator->text, " ◷ %s ", timebuf);
-	//indicator->width=textnw(indicator->text, strlen(indicator->text));
 }
 
 void indicator_time_expose(Indicator *indicator, Window window) {
