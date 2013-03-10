@@ -595,6 +595,7 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 		draw_text(0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id);
 		
 		if(status==PLAYBACK_STATUS_STOPPED) {
+			XSetForeground(dpy, menu.gc, dc.norm[ColBG].pixel);
 			XFillRectangle(dpy, window, menu.gc, 0, y+bh, menu.w, bh*3);
 			draw_text(8, y+bh*2, menu.w, bh, dc.norm, "Playback stopped");
 		} else {

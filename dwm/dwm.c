@@ -390,6 +390,7 @@ buttonpress(XEvent *e) {
 					in->mouse(in, ev);
 					updatestatus();
 					click = ClkStatusText;
+					break;
 				}
 			}
 		}
