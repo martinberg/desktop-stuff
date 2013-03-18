@@ -80,7 +80,7 @@ static struct {
 	int x, y, w, h;
 	int selected;
 	int button;
-} menu;
+} menu={0};
 
 static struct MEDIAPLAYER {
 	const char *id;
