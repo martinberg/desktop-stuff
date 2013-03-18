@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "dwm.h"
 
 #define MENU_WIDTH 256
