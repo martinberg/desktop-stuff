@@ -11,6 +11,8 @@ static struct {
 	int selected;
 } menu={0};
 
+static struct tm seltime;
+
 static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
 	char buf[256];
 	int i, texth, len, olen;
@@ -60,34 +62,51 @@ static void menu_close() {
 }
 
 int indicator_time_init(Indicator *indicator) {
+	time_t t;
+	struct tm *timeinfo;
+	time(&t);
+	timeinfo=localtime(&t);
+	memcpy(&seltime, timeinfo, sizeof(struct tm));
 	return 0;
 }
 
 void indicator_time_update(Indicator *indicator) {
-	time_t rawtime;
+	time_t t;
 	struct tm *timeinfo;
 	char timebuf[16];
 	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
+	time(&t);
+	timeinfo=localtime(&t);
 	
 	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
 	sprintf(indicator->text, " ◷ %s ", timebuf);
 }
 
 void indicator_time_expose(Indicator *indicator, Window window) {
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[32];
+	int day, wday, y=bh;
+	time_t t, selt;
+	struct tm *timeinfo, sel=seltime;
+	char buf[32];
 	
 	if(window!=menu.window)
 		return;
 	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
+	time(&t);
+	timeinfo=localtime(&t);
+	selt=mktime(&seltime);
+	gmtime_r(&selt, &seltime);
+	if(--seltime.tm_wday<0)
+		seltime.tm_wday=6;
 	
-	strftime(timebuf, 32, "%a %d %b %Y", timeinfo);
-	draw_text(0, 0, menu.w, bh, dc.norm, timebuf);
+	strftime(buf, sizeof(buf), "%a %d %b %Y", timeinfo);
+	draw_text(0, 0, menu.w, bh, dc.norm, buf);
+	
+	for(day=seltime.tm_mday-1, wday=seltime.tm_wday-1; day>0; day--, wday--) {
+		if(wday<0)
+			wday=6;
+		sprintf(buf, "%i", day);
+		draw_text(bh*seltime.tm_wday, bh, menu.w, bh, dc.norm, buf);
+	}
 }
 
 Bool indicator_time_haswindow(Indicator *indicator, Window window) {
