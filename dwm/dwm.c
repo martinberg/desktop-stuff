@@ -32,6 +32,8 @@ static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
+static void bstack(Monitor *m);
+static void bstackhoriz(Monitor *m);
 static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
@@ -352,6 +354,72 @@ void
 attachstack(Client *c) {
 	c->snext = c->mon->stack;
 	c->mon->stack = c;
+}
+
+void
+bstack(Monitor *m) {
+	int w, h, mh, mx, tx, ty, tw;
+	unsigned int i, n;
+	Client *c;
+
+	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	if(n == 0)
+		return;
+	if(n > m->nmaster) {
+		mh = m->nmaster ? m->mfact * m->wh : 0;
+		tw = m->ww / (n - m->nmaster);
+		ty = m->wy + mh;
+	} 
+	else {
+		mh = m->wh;
+		tw = m->ww;
+		ty = m->wy;
+	}
+	for(i = mx = 0, tx = m->wx, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
+		if(i < m->nmaster) {
+			w = (m->ww - mx) / (MIN(n, m->nmaster) - i);
+			resize(c, m->wx + mx, m->wy, w - (2 * c->bw), mh - (2 * c->bw), False);
+			mx += WIDTH(c);
+		} 
+		else {
+			h = m->wh - mh;
+			resize(c, tx, ty, tw - (2 * c->bw), h - (2 * c->bw), False);
+			if(tw != m->ww)
+				tx += WIDTH(c);
+		}
+	}
+}
+
+void
+bstackhoriz(Monitor *m) {
+	int w, mh, mx, tx, ty, th;
+	unsigned int i, n;
+	Client *c;
+
+	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	if(n == 0)
+		return;
+	if(n > m->nmaster) {
+		mh = m->nmaster ? m->mfact * m->wh : 0;
+		th = (m->wh - mh) / (n - m->nmaster);
+		ty = m->wy + mh;
+	} 
+	else {
+		th = mh = m->wh;
+		ty = m->wy;
+	}
+	for(i = mx = 0, tx = m->wx, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
+		if(i < m->nmaster) {
+			w = (m->ww - mx) / (MIN(n, m->nmaster) - i);
+			resize(c, m->wx + mx, m->wy, w - (2 * c->bw), mh - (2 * c->bw), False);
+			mx += WIDTH(c);
+		} 
+		else {
+			resize(c, tx, ty, m->ww - (2 * c->bw), th - (2 * c->bw), False);
+			if(th != m->wh)
+				ty += HEIGHT(c);
+		}
+	}
 }
 
 void
@@ -888,7 +956,7 @@ focus(Client *c) {
 		detachstack(c);
 		attachstack(c);
 		grabbuttons(c, True);
-		if(c->isfloating)
+		if(c->isfloating && !wintoindicator(c->win))
 			XSetWindowBorder(dpy, c->win, dc.sel[ColBorderFloat].pixel);
 		else
 			XSetWindowBorder(dpy, c->win, dc.sel[ColBorder].pixel);
@@ -1185,7 +1253,8 @@ manage(Window w, XWindowAttributes *wa) {
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if(c->isfloating) {
 		XRaiseWindow(dpy, c->win);
-		XSetWindowBorder(dpy, w, dc.norm[ColBorderFloat].pixel);
+		if(!wintoindicator(c->win))
+			XSetWindowBorder(dpy, w, dc.norm[ColBorderFloat].pixel);
 	}
 	attach(c);
 	attachstack(c);
@@ -1532,13 +1601,13 @@ run(void) {
 		// Create a File Description Set containing x11_fd
 		FD_ZERO(&in_fds);
 		FD_SET(x11_fd, &in_fds);
-		tv.tv_usec = 500000;
+		tv.tv_usec = 50000;
 		tv.tv_sec = 0;
 		
 		updatestatus();
 		// Wait for X Event or a Timer
-		if(!select(x11_fd+1, &in_fds, 0, 0, &tv))
-			continue;
+		/*if(!*/select(x11_fd+1, &in_fds, 0, 0, &tv);/*)
+			continue;*/
 
 		// Handle XEvents and flush the input 
 		while(XPending(dpy)) {
@@ -1701,7 +1770,6 @@ void
 setup(void) {
 	Atom netwmcheck, utf8_string;
 	XSetWindowAttributes wa;
-	Indicator **in;
 
 	/* clean up any zombies immediately */
 	sigchld(0);
@@ -1776,17 +1844,8 @@ setup(void) {
 	
 	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_haswindow, indicator_time_mouse);
 	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_haswindow, indicator_music_mouse);
-	indicator_add(indicator_disk_init, indicator_disk_update, indicator_disk_expose, indicator_disk_haswindow, indicator_disk_mouse);
-	
-	for(in=&indicator; *in; in=&((*in)->next))
-		if((*in)->init)
-			if((*in)->init(*in)<0) {
-				Indicator *i=*in;
-				free(i);
-				if(!(*in=(*in)->next))
-					break;
-			}
-				
+	indicator_add(indicator_disc_init, indicator_disc_update, indicator_disc_expose, indicator_disc_haswindow, indicator_disc_mouse);
+	indicator_add(indicator_power_init, indicator_power_update, indicator_power_expose, indicator_power_haswindow, indicator_power_mouse);
 }
 
 void
@@ -1907,7 +1966,10 @@ togglefloating(const Arg *arg) {
 		return;
 	selmon->sel->isfloating = !selmon->sel->isfloating || selmon->sel->isfixed;
 	if(selmon->sel->isfloating) {
-		XSetWindowBorder(dpy, selmon->sel->win, dc.sel[ColBorderFloat].pixel);
+		if(wintoindicator(selmon->sel->win))
+			XSetWindowBorder(dpy, selmon->sel->win, dc.sel[ColBorder].pixel);
+		else
+			XSetWindowBorder(dpy, selmon->sel->win, dc.sel[ColBorderFloat].pixel);
 		resize(selmon->sel, selmon->sel->x, selmon->sel->y,
 		       selmon->sel->w, selmon->sel->h, False);
 	} else
@@ -1965,7 +2027,7 @@ unfocus(Client *c, Bool setfocus) {
 	if(!c)
 		return;
 	grabbuttons(c, False);
-	if(c->isfloating)
+	if(c->isfloating && !wintoindicator(c->win))
 		XSetWindowBorder(dpy, c->win, dc.norm[ColBorderFloat].pixel);
 	else
 		XSetWindowBorder(dpy, c->win, dc.norm[ColBorder].pixel);
@@ -3082,8 +3144,7 @@ void self_restart(const Arg *arg) {
 
 void indicator_add(int (*init)(Indicator *), void (*update)(Indicator *), void (*expose)(Indicator *, Window), Bool (*haswindow)(Indicator *, Window), void (*mouse)(Indicator *, XButtonPressedEvent *)) {
 	Indicator **i, *ii;
-	for(i=&indicator; *i; i=&((*i)->next));
-	*i=ii=malloc(sizeof(Indicator));
+	ii=malloc(sizeof(Indicator));
 	ii->init=init;
 	ii->active=False;
 	ii->update=update;
@@ -3095,4 +3156,10 @@ void indicator_add(int (*init)(Indicator *), void (*update)(Indicator *), void (
 	ii->width=0;
 	ii->data=NULL;
 	ii->next=NULL;
+	if(ii->init(ii)>=0) {
+		for(i=&indicator; *i; i=&((*i)->next));
+		*i=ii;
+	} else {
+		fprintf(stderr, "Error: failed to add indicator");
+	}
 }

@@ -5,12 +5,14 @@ static const char font[]		= "sans-10";
 static const char normbordercolor[]	= "#3c3b37";
 static const char normbgcolor[]		= "#3c3b37";
 static const char normfgcolor[]		= "#bbbbbb";
-static const char selbordercolor[]	= "#3c3b37";
+//static const char selbordercolor[]	= "#3c3b37";
+static const char selbordercolor[]	= "#005577";
 static const char selbgcolor[]		= "#005577";
 static const char selfgcolor[]		= "#eeeeee";
 static const char floatnormbordercolor[]= "#3c3b37";
-static const char floatselbordercolor[]	= "#005577";
-static const unsigned int borderpx	= 1;		/* border pixel of windows */
+//static const char floatselbordercolor[]	= "#005577";
+static const char floatselbordercolor[]	= "#FF0000";
+static const unsigned int borderpx	= 2;		/* border pixel of windows */
 static const unsigned int snap		= 32;		/* snap pixel */
 static const unsigned int systrayspacing= 2;
 static const Bool showsystray		= True;
@@ -21,12 +23,29 @@ static const Bool bottombar		= False;	/* True means an extra bar at the bottom *
 static const char *wmname="LG3D";
 
 /* tagging */
-static const char *tags[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+static const char *tags[] = {"web", "term", "dev", "file", "chat", "mono", "virt", "spare", "float"};
 
 static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	/*{"Gimp",     NULL,       NULL,       0,            True,        -1},*/
 	{"Firefox",  NULL,       NULL,       1,       False,       1},
+	{"Chromium-browser",  NULL,       NULL,       1,       False,       1},
+	
+	{"Scite",  NULL,       NULL,       1<<2,       False,       0},
+	{"Geany",  NULL,       NULL,       1<<2,       False,       0},
+	
+	{"Nemo",  NULL,       NULL,       1<<3,       False,       0},
+	{"Nautilus",  NULL,       NULL,       1<<3,       False,       0},
+	
+	
+	{"Wine",  NULL,       NULL,       1<<5,       False,       0},
+	{"Steam",  NULL,       NULL,       1<<5,       False,       0},
+	{"Opencpn",  NULL,       NULL,       1<<5,       False,       0},
+	{"Gimp",  NULL,       NULL,       1<<5,       False,       0},
+	
+	{"Virtualbox",  NULL,       NULL,       1<<6,       False,       0},
+	
+	{"file_progress",  NULL,       NULL,       1<<8,       True,       0},
 	{"Audacious",  NULL,       NULL,       1<<8,       True,       0},
 	{"Update-manager",  NULL,       NULL,       1<<8,       True,       0},
 	{"Update-manager",  NULL,       NULL,       0,       True,       -1},
@@ -42,6 +61,8 @@ static const Layout layouts[] = {
 	{"◫", tile},	/* first entry is default */
 	{"≋", NULL},	/* no layout function means floating behavior */
 	{"□", monocle},
+	{"T", bstack},
+	{"=", bstackhoriz},
 };
 
 /* key definitions */
@@ -58,12 +79,14 @@ static const Layout layouts[] = {
 /* commands */
 static const char *dmenucmd[]	= {"dmenu_run", "-fn", font, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL};
 static const char *termcmd[]	= {"uxterm", NULL};
+static const char *webcmd[]	= {"firefox", NULL};
 static const char *logoutcmd[]	= {"gnome-session-quit", NULL};
 
 static Key keys[] = {
 	/* modifier                     key        function        argument */
 	{MODKEY,			XK_p,      spawn,          {.v = dmenucmd}},
 	{MODKEY|ShiftMask,		XK_Return, spawn,          {.v = termcmd}},
+	{MODKEY|ShiftMask,		XK_f, spawn,          {.v = webcmd}},
 	{MODKEY,			XK_b,      togglebar,      {0}},
 	{MODKEY,			XK_b,	   togglebottombar,{0}},
 	{MODKEY,			XK_j,      focusstack,     {.i = +1}},
@@ -78,6 +101,8 @@ static Key keys[] = {
 	{MODKEY,			XK_t,      setlayout,      {.v = &layouts[0]}},
 	{MODKEY,			XK_f,      setlayout,      {.v = &layouts[1]}},
 	{MODKEY,			XK_m,      setlayout,      {.v = &layouts[2]}},
+	{MODKEY,			XK_s,      setlayout,      {.v = &layouts[3]}},
+	/*{MODKEY,			XK_m,      setlayout,      {.v = &layouts[2]}},*/
 	{MODKEY,			XK_space,  setlayout,      {0}},
 	{MODKEY|ShiftMask,		XK_space,  togglefloating, {0}},
 	{MODKEY,			XK_0,      view,           {.ui = ~0}},
