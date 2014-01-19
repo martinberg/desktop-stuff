@@ -23,7 +23,8 @@ static const Bool bottombar		= False;	/* True means an extra bar at the bottom *
 static const char *wmname="LG3D";
 
 /* tagging */
-static const char *tags[] = {"web", "term", "dev", "file", "chat", "mono", "virt", "spare", "float"};
+//static const char *tags[] = {"web", "term", "dev", "file", "chat", "mono", "virt", "spare", "float"};
+static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
 static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
@@ -48,7 +49,7 @@ static const Rule rules[] = {
 	{"file_progress",  NULL,       NULL,       1<<8,       True,       0},
 	{"Audacious",  NULL,       NULL,       1<<8,       True,       0},
 	{"Update-manager",  NULL,       NULL,       1<<8,       True,       0},
-	{"Update-manager",  NULL,       NULL,       0,       True,       -1},
+	/*{"Update-manager",  NULL,       NULL,       0,       True,       -1},*/
 };
 
 /* layout(s) */
