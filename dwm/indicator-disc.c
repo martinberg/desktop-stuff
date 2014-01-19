@@ -1,8 +1,13 @@
-#include <time.h>
+#include <sys/statvfs.h>
 
 #include "dwm.h"
 
-#define MENU_WIDTH 256
+#define MENU_WIDTH 200
+
+static char *discs[]={
+	"/",
+	"/media/data",
+};
 
 static struct {
 	Window window;
@@ -42,7 +47,7 @@ static void menu_open(Indicator *indicator) {
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
 	menu.y=bh;
 	menu.w=MENU_WIDTH;
-	menu.h=bh*8;
+	menu.h=bh*(sizeof(discs)/sizeof(char *));
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
 		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
@@ -58,48 +63,43 @@ static void menu_close() {
 	XUnmapWindow(dpy, menu.window);
 	XDestroyWindow(dpy, menu.window);
 }
-
-int indicator_time_init(Indicator *indicator) {
+int indicator_disc_init(Indicator *indicator) {
 	return 0;
 }
 
-void indicator_time_update(Indicator *indicator) {
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[16];
+void indicator_disc_update(Indicator *indicator) {
+	struct statvfs sbuf;
 	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
-	
-	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
-	sprintf(indicator->text, " ◷ %s ", timebuf);
+	if(statvfs("/", &sbuf)>=0)
+		sprintf(indicator->text, " ⛁ %lu%% ", 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
 }
 
-void indicator_time_expose(Indicator *indicator, Window window) {
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[32];
+void indicator_disc_expose(Indicator *indicator, Window window) {
+	int i;
+	char buf[256];
+	struct statvfs sbuf;
 	
 	if(window!=menu.window)
 		return;
 	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
-	
-	strftime(timebuf, 32, "%a %d %b %Y", timeinfo);
-	draw_text(0, 0, menu.w, bh, dc.norm, timebuf);
+	for(i=0; i<(sizeof(discs)/sizeof(char *)); i++) {
+		if(statvfs(discs[i], &sbuf)>=0) {
+			sprintf(buf, " %s %lu%% ", discs[i], 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
+			draw_text(0, i*bh, MENU_WIDTH, bh, dc.norm, buf);
+		}
+	}
 }
 
-Bool indicator_time_haswindow(Indicator *indicator, Window window) {
+Bool indicator_disc_haswindow(Indicator *indicator, Window window) {
 	return menu.window==window?True:False;
 }
 
-void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+void indicator_disc_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	if(!ev) {
 		return;
 	}
 	if(ev->window==menu.window) {
-		indicator_time_expose(indicator, ev->window);
+		indicator_disc_expose(indicator, ev->window);
 		return;
 	}
 	switch(ev->button) {
@@ -116,5 +116,5 @@ void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			break;
 	}
 	if(indicator->active)
-		indicator_time_expose(indicator, menu.window);
+		indicator_disc_expose(indicator, menu.window);
 }

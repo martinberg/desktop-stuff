@@ -204,10 +204,16 @@ void indicator_music_expose(Indicator *indicator, Window window);
 Bool indicator_music_haswindow(Indicator *in, Window window);
 void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
-int indicator_disk_init(Indicator *indicator);
-void indicator_disk_update(Indicator *indicator);
-void indicator_disk_expose(Indicator *indicator, Window window);
-Bool indicator_disk_haswindow(Indicator *indicator, Window window);
-void indicator_disk_mouse(Indicator *indicator, XButtonPressedEvent *ev);
+int indicator_disc_init(Indicator *indicator);
+void indicator_disc_update(Indicator *indicator);
+void indicator_disc_expose(Indicator *indicator, Window window);
+Bool indicator_disc_haswindow(Indicator *indicator, Window window);
+void indicator_disc_mouse(Indicator *indicator, XButtonPressedEvent *ev);
+
+int indicator_power_init(Indicator *indicator);
+void indicator_power_update(Indicator *indicator);
+void indicator_power_expose(Indicator *indicator, Window window);
+Bool indicator_power_haswindow(Indicator *indicator, Window window);
+void indicator_power_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
 #endif

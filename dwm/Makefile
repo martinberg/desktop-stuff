@@ -3,7 +3,8 @@
 
 include config.mk
 
-SRC = dwm.c indicator-time.c indicator-music.c indicator-disk.c
+SRC = dwm.c indicator-time.c indicator-music.c indicator-disc.c indicator-power.c
+	#libacpi/libacpi.c libacpi/list.c
 OBJ = ${SRC:.c=.o}
 
 all: options dwm
@@ -16,7 +17,7 @@ options:
 
 .c.o:
 	@echo CC $<
-	@${CC} -c ${CFLAGS} $<
+	@${CC} -o $@ -c ${CFLAGS} $<
 
 ${OBJ}: dwm.h config.h config.mk
 

@@ -369,7 +369,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*2+bh*5*i;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorderFloat].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -441,22 +441,22 @@ static void check_bus() {
 	}
 }
 
-static int volume_get() {
+static long volume_get() {
 	long volume;
 	if(snd_mixer_selem_get_playback_volume(alsa.elem, 0, &volume)<0)
 		return -1;
 	
 	volume-=alsa.minv;
-	return (100*volume)/(alsa.maxv-alsa.minv);
+	return (100L*volume)/(alsa.maxv-alsa.minv);
 }
 
-static void volume_set(int volume) {
+static void volume_set(long volume) {
 	if(volume<0)
 		volume=0;
-	if(volume>100)
-		volume=100;
+	if(volume>100L)
+		volume=100L;
 	
-	volume=volume*(alsa.maxv-alsa.minv)/100+alsa.minv;
+	volume=(volume*((long) (alsa.maxv-alsa.minv)))/100L+alsa.minv;
 	snd_mixer_selem_set_playback_volume(alsa.elem, 0, volume);
 	snd_mixer_selem_set_playback_volume(alsa.elem, 1, volume);
 }
@@ -571,7 +571,7 @@ void indicator_music_update(Indicator *indicator) {
 	if(mute_get())
 		sprintf(indicator->text, " ♫ -- ");
 	else
-		sprintf(indicator->text, " ♫ %i%% ", volume_get());
+		sprintf(indicator->text, " ♫ %li%% ", volume_get());
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
@@ -679,11 +679,11 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			return;
 		case Button4:
 			snd_mixer_handle_events(alsa.handle);
-			volume_set(volume_get()+5);
+			volume_set(volume_get()+6);
 			break;
 		case Button5:
 			snd_mixer_handle_events(alsa.handle);
-			volume_set(volume_get()-5);
+			volume_set(volume_get()-4);
 			break;
 	}
 	if(indicator->active)

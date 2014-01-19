@@ -1,8 +1,12 @@
-#include <time.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "dwm.h"
 
-#define MENU_WIDTH 256
+#define MENU_WIDTH 128
+
+static FILE *acpi_capacity;
+static FILE *acpi_status;
 
 static struct {
 	Window window;
@@ -42,7 +46,7 @@ static void menu_open(Indicator *indicator) {
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
 	menu.y=bh;
 	menu.w=MENU_WIDTH;
-	menu.h=bh*8;
+	menu.h=bh*1;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
 		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
@@ -59,47 +63,50 @@ static void menu_close() {
 	XDestroyWindow(dpy, menu.window);
 }
 
-int indicator_time_init(Indicator *indicator) {
+int indicator_power_init(Indicator *indicator) {
+	if(!(acpi_capacity = fopen("/sys/class/power_supply/BAT0/capacity", "r")))
+		return -1;
+	if(!(acpi_status = fopen("/sys/class/power_supply/BAT0/status", "r"))) {
+		fclose(acpi_capacity);
+		return -1;
+	}
 	return 0;
 }
 
-void indicator_time_update(Indicator *indicator) {
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[16];
-	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
-	
-	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
-	sprintf(indicator->text, " ◷ %s ", timebuf);
+void indicator_power_update(Indicator *indicator) {
+	char percentage[10];
+	char *nl;
+	fseek(acpi_capacity, 0, SEEK_SET);
+	fread(percentage, 10, 1, acpi_capacity);
+	if((nl = strchr(percentage, '\n')))
+		*nl = 0;
+	sprintf(indicator->text, " ⚡ %s%%", percentage);
 }
 
-void indicator_time_expose(Indicator *indicator, Window window) {
-	time_t rawtime;
-	struct tm *timeinfo;
-	char timebuf[32];
+void indicator_power_expose(Indicator *indicator, Window window) {
+	char status[20];
+	char *nl;
 	
 	if(window!=menu.window)
 		return;
 	
-	time(&rawtime);
-	timeinfo=localtime(&rawtime);
-	
-	strftime(timebuf, 32, "%a %d %b %Y", timeinfo);
-	draw_text(0, 0, menu.w, bh, dc.norm, timebuf);
+	fseek(acpi_status, 0, SEEK_SET);
+	fread(status, 20, 1, acpi_status);
+	if((nl = strchr(status, '\n')))
+		*nl = 0;
+	draw_text(0, 0, MENU_WIDTH, bh, dc.norm, status);
 }
 
-Bool indicator_time_haswindow(Indicator *indicator, Window window) {
+Bool indicator_power_haswindow(Indicator *indicator, Window window) {
 	return menu.window==window?True:False;
 }
 
-void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+void indicator_power_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	if(!ev) {
 		return;
 	}
 	if(ev->window==menu.window) {
-		indicator_time_expose(indicator, ev->window);
+		indicator_power_expose(indicator, ev->window);
 		return;
 	}
 	switch(ev->button) {
@@ -116,5 +123,5 @@ void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			break;
 	}
 	if(indicator->active)
-		indicator_time_expose(indicator, menu.window);
+		indicator_power_expose(indicator, menu.window);
 }
