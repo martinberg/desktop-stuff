@@ -41,6 +41,22 @@ static struct {
 };
 
 static struct {
+	DBusConnection* connection;
+	DBusError error;
+	dbus_uint32_t serial;
+	const char *interface;
+	const char *interface_prop;
+	const char *object;
+} dbus={
+	NULL,
+	{0},
+	0,
+	"org.freedesktop.DBus",
+	"org.freedesktop.DBus.Properties",
+	"/org/freedesktop/DBus",
+};
+
+static struct {
 	snd_mixer_t *handle;
 	snd_mixer_elem_t* elem;
 	snd_mixer_selem_id_t *sid;
@@ -97,7 +113,7 @@ static void mediaplayer_register(const char *id) {
 		dbus_message_unref(msg);
 		goto do_register;
 	}
-	if(!dbus_connection_send_with_reply(dbus.session.connection, msg, &pending, -1)) {
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
 		dbus_message_unref(msg);
 		goto do_register;
 	}
@@ -105,7 +121,7 @@ static void mediaplayer_register(const char *id) {
 		dbus_message_unref(msg);
 		goto do_register;
 	}
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
 	dbus_pending_call_block(pending);
 	if (!(msg=dbus_pending_call_steal_reply(pending))) {
@@ -187,7 +203,7 @@ static struct TRACK mediaplayer_get_track(const char *id) {
 		dbus_message_unref(msg);
 		return track;
 	}
-	if(!dbus_connection_send_with_reply(dbus.session.connection, msg, &pending, -1)) {
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
 		dbus_message_unref(msg);
 		return track;
 	}
@@ -195,7 +211,7 @@ static struct TRACK mediaplayer_get_track(const char *id) {
 		dbus_message_unref(msg);
 		return track;
 	}
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
 	dbus_pending_call_block(pending);
 	if(!(msg=dbus_pending_call_steal_reply(pending))) {
@@ -273,7 +289,7 @@ static enum PLAYBACK_STATUS mediaplayer_get_status(const char *id) {
 		dbus_message_unref(msg);
 		return ret;
 	}
-	if(!dbus_connection_send_with_reply(dbus.session.connection, msg, &pending, -1)) {
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
 		dbus_message_unref(msg);
 		return ret;
 	}
@@ -281,7 +297,7 @@ static enum PLAYBACK_STATUS mediaplayer_get_status(const char *id) {
 		dbus_message_unref(msg);
 		return ret;
 	}
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
 	dbus_pending_call_block(pending);
 	if(!(msg=dbus_pending_call_steal_reply(pending))) {
@@ -318,10 +334,10 @@ static void mediaplayer_raise(const char *id) {
 	char player[256];
 	sprintf(player, "%s%s", mpris.base, id);
 	msg=dbus_message_new_method_call(player, mpris.object, mpris.interface, "Raise");
-	dbus_connection_send(dbus.session.connection, msg, &dbus.session.serial);
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_send(dbus.connection, msg, &dbus.serial);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
-	dbus.session.serial++;
+	dbus.serial++;
 }
 
 static void mediaplayer_action(const char *id, enum MEDIAPLAYER_ACTION action) {
@@ -336,10 +352,10 @@ static void mediaplayer_action(const char *id, enum MEDIAPLAYER_ACTION action) {
 	char player[256];
 	sprintf(player, "%s%s", mpris.base, id);
 	msg=dbus_message_new_method_call(player, mpris.object, mpris.interface_player, actions[action]);
-	dbus_connection_send(dbus.session.connection, msg, &dbus.session.serial);
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_send(dbus.connection, msg, &dbus.serial);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
-	dbus.session.serial++;
+	dbus.serial++;
 }
 
 static void menu_open(Indicator *indicator) {
@@ -399,9 +415,9 @@ static void check_bus() {
 	char *player, *oldowner, *newowner;
 	
 	while(1) {
-		dbus_connection_read_write(dbus.session.connection, 0);
+		dbus_connection_read_write(dbus.connection, 0);
 
-		if(!(msg=dbus_connection_pop_message(dbus.session.connection)))
+		if(!(msg=dbus_connection_pop_message(dbus.connection)))
 			break;
 		
 		if(dbus_message_is_signal(msg, dbus.interface, "NameOwnerChanged")) {
@@ -464,34 +480,42 @@ int indicator_music_init(Indicator *indicator) {
 	char *player;
 	int current_type;
 	
-	if(!dbus.session.connection)
+	/*Init dbus*/
+	dbus_error_init(&dbus.error);
+	dbus.connection = dbus_bus_get(DBUS_BUS_SESSION, &dbus.error);
+	if(dbus_error_is_set(&dbus.error)) { 
+		dbus_error_free(&dbus.error);
 		return -1;
+	}
+	if(!dbus.connection) { 
+		return -1;
+	}
 	
 	if(!(msg=dbus_message_new_method_call(dbus.interface, dbus.object, dbus.interface, "ListNames")))
 		return -1;
 	
-	if(!dbus_connection_send_with_reply(dbus.session.connection, msg, &pending, -1)) {
-		dbus_connection_unref(dbus.session.connection);
+	if(!dbus_connection_send_with_reply(dbus.connection, msg, &pending, -1)) {
+		dbus_connection_unref(dbus.connection);
 		return -1;
 	}
 	if(!pending) {
 		dbus_message_unref(msg);
-		dbus_connection_unref(dbus.session.connection);
+		dbus_connection_unref(dbus.connection);
 		return -1;
 	}
-	dbus_connection_flush(dbus.session.connection);
+	dbus_connection_flush(dbus.connection);
 	dbus_message_unref(msg);
 	dbus_pending_call_block(pending);
 
 	if(!(msg=dbus_pending_call_steal_reply(pending))) {
-		dbus_connection_unref(dbus.session.connection);
+		dbus_connection_unref(dbus.connection);
 		return -1;
 	}
 	dbus_pending_call_unref(pending);
 
 	if(!(dbus_message_iter_init(msg, &args)&&dbus_message_iter_get_arg_type(&args)==DBUS_TYPE_ARRAY)) {
 		dbus_message_unref(msg);
-		dbus_connection_unref(dbus.session.connection);
+		dbus_connection_unref(dbus.connection);
 		return -1;
 	}
 	
@@ -505,10 +529,10 @@ int indicator_music_init(Indicator *indicator) {
 	}
 	dbus_message_unref(msg);
 	
-	dbus_bus_add_match(dbus.session.connection, "type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged'", &dbus.session.error);
-	dbus_connection_flush(dbus.session.connection);
-	if(dbus_error_is_set(&dbus.session.error)) { 
-		dbus_connection_unref(dbus.session.connection);
+	dbus_bus_add_match(dbus.connection, "type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged'", &dbus.error);
+	dbus_connection_flush(dbus.connection);
+	if(dbus_error_is_set(&dbus.error)) { 
+		dbus_connection_unref(dbus.connection);
 		mediaplayer_deregister_all();
 		return -1;
 	}
