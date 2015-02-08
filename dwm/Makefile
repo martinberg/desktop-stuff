@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = dwm.c indicator-time.c indicator-music.c indicator-disc.c indicator-power.c
+SRC = dwm.c indicator-upgrade.c indicator-time.c indicator-music.c indicator-disk.c indicator-power.c indicator-logout.c dbus.c power.c
 	#libacpi/libacpi.c libacpi/list.c
 OBJ = ${SRC:.c=.o}
 

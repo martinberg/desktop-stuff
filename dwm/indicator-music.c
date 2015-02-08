@@ -1,6 +1,6 @@
-#include <dbus/dbus.h>
 #include <alsa/asoundlib.h>
 #include "dwm.h"
+#include "dbus.h"
 
 #define MENU_WIDTH 256
 #define TRACK_ELEMENT_LENGTH 128
@@ -592,7 +592,7 @@ Bool indicator_music_haswindow(Indicator *in, Window window) {
 }
 
 void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
-	if(!ev) {
+	if(ev->type != ButtonPress) {
 		Window w;
 		int tmp;
 		int x, y;

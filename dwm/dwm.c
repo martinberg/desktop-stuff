@@ -83,7 +83,6 @@ static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
-static void quit(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void removesystrayicon(Client *i);
 static void resize(Client *c, int x, int y, int w, int h, Bool interact);
@@ -1320,7 +1319,7 @@ motionnotify(XEvent *e) {
 	XMotionEvent *ev = &e->xmotion;
 	
 	if((in=wintoindicator(ev->window))) {
-		in->mouse(in, NULL);
+		in->mouse(in, ev);
 		return;
 	}
 	if(ev->window != root)
@@ -1846,10 +1845,15 @@ setup(void) {
 	grabkeys();
 	exepath=get_dwm_path();
 	
+	dbus_init();
+	ck_init();
+	
+	indicator_add(indicator_logout_init, indicator_logout_update, indicator_logout_expose, indicator_logout_haswindow, indicator_logout_mouse);
 	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_haswindow, indicator_time_mouse);
 	indicator_add(indicator_music_init, indicator_music_update, indicator_music_expose, indicator_music_haswindow, indicator_music_mouse);
-	indicator_add(indicator_disc_init, indicator_disc_update, indicator_disc_expose, indicator_disc_haswindow, indicator_disc_mouse);
+	indicator_add(indicator_disk_init, indicator_disk_update, indicator_disk_expose, indicator_disk_haswindow, indicator_disk_mouse);
 	indicator_add(indicator_power_init, indicator_power_update, indicator_power_expose, indicator_power_haswindow, indicator_power_mouse);
+	indicator_add(indicator_upgrade_init, indicator_upgrade_update, indicator_upgrade_expose, indicator_upgrade_haswindow, indicator_upgrade_mouse);
 }
 
 void
@@ -2483,6 +2487,11 @@ warp(const Client *c) {
 	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w / 2, c->h / 2);
 }
 
+void viewtag(int tag) {
+	Arg a = {.i = 1 << (tag - 1)};
+	view(&a);
+}
+
 void
 view(const Arg *arg) {
 	int i;
@@ -2624,6 +2633,7 @@ main(int argc, char *argv[]) {
 	run();
 	cleanup();
 	XCloseDisplay(dpy);
+	ck_exit();
 	return EXIT_SUCCESS;
 }
 
@@ -2798,6 +2808,9 @@ drawstatus(Monitor *m) {
 		XftColor cur_bg;
 		struct ansi_node *head = NULL;
 		struct ansi_node *curn;
+		
+		if(!i->text[0])
+			continue;
 		
 		if(i->active) {
 			cur_fg = dc.sel[ColFG];

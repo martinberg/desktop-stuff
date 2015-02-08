@@ -1,13 +1,11 @@
-#include <sys/statvfs.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #include "dwm.h"
 
 #define MENU_WIDTH 200
 
-static char *discs[]={
-	"/",
-	"/media/data",
-};
 
 static struct {
 	Window window;
@@ -15,6 +13,53 @@ static struct {
 	int x, y, w, h;
 	int selected;
 } menu={0};
+
+
+static struct {
+	pthread_t thread;
+	int upgrades;
+	pthread_mutex_t lock;
+} upg;
+
+static int numupgrades() {
+	int upgrades = 0;
+	FILE *p;
+	
+	if(!(p = popen("apt-get --dry-run upgrade | grep ^Inst | wc -l", "r")))
+		return 0;
+	
+	fscanf(p, "%i\n", &upgrades);
+	pclose(p);
+	
+	return upgrades;
+}
+
+static void *get_upgrades(void *tmp) {
+	int upgrades;
+	for(;;) {
+		upgrades = numupgrades();
+		pthread_mutex_lock(&upg.lock);
+		upg.upgrades = upgrades;
+		pthread_mutex_unlock(&upg.lock);
+		sleep(60*10);
+	}
+	return NULL;
+}
+
+static void update_manager() {
+	switch(fork()) {
+		case 0:
+			execlp("update-manager", "update-manager", NULL);
+			exit(1);
+		
+		default:
+			viewtag(9);
+			break;
+		
+		case -1:
+			return;
+	}
+}
 
 static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
 	char buf[256];
@@ -47,7 +92,7 @@ static void menu_open(Indicator *indicator) {
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
 	menu.y=bh;
 	menu.w=MENU_WIDTH;
-	menu.h=bh*(sizeof(discs)/sizeof(char *));
+	menu.h=bh*1;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
 		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
@@ -63,43 +108,55 @@ static void menu_close() {
 	XUnmapWindow(dpy, menu.window);
 	XDestroyWindow(dpy, menu.window);
 }
-int indicator_disc_init(Indicator *indicator) {
+int indicator_upgrade_init(Indicator *indicator) {
+	if(pthread_mutex_init(&upg.lock, NULL) != 0)
+		return -1;
+	if(pthread_create(&upg.thread, NULL, get_upgrades, NULL) != 0)
+		return -1;
 	return 0;
 }
 
-void indicator_disc_update(Indicator *indicator) {
-	struct statvfs sbuf;
+void indicator_upgrade_update(Indicator *indicator) {
+	int upgrades;
 	
-	if(statvfs("/", &sbuf)>=0)
-		sprintf(indicator->text, " ⛁ %lu%% ", 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
+	pthread_mutex_lock(&upg.lock);
+	upgrades = upg.upgrades;
+	pthread_mutex_unlock(&upg.lock);
+	if(upgrades)
+		sprintf(indicator->text, " ⇪ %i ", upgrades);
+	else 
+		indicator->text[0] = 0;
 }
 
-void indicator_disc_expose(Indicator *indicator, Window window) {
-	int i;
-	char buf[256];
-	struct statvfs sbuf;
-	
+void indicator_upgrade_expose(Indicator *indicator, Window window) {
 	if(window!=menu.window)
 		return;
 	
-	for(i=0; i<(sizeof(discs)/sizeof(char *)); i++) {
-		if(statvfs(discs[i], &sbuf)>=0) {
-			sprintf(buf, " %s %lu%% ", discs[i], 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
-			draw_text(0, i*bh, MENU_WIDTH, bh, dc.norm, buf);
-		}
-	}
+	draw_text(0, 0, MENU_WIDTH, bh, menu.selected == 0 ? dc.sel : dc.norm, "Open update manager");
 }
 
-Bool indicator_disc_haswindow(Indicator *indicator, Window window) {
+Bool indicator_upgrade_haswindow(Indicator *indicator, Window window) {
 	return menu.window==window?True:False;
 }
 
-void indicator_disc_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
-	if(!ev) {
+void indicator_upgrade_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+	if(ev->type != ButtonPress) {
+		XMotionEvent *motev = (void *) ev;
+		int x = motev->x, y = motev->y;
+		
+		menu.selected=-1;
+		if(x>=0&&y>=0&&x<menu.w&&y<menu.h) {
+			menu.selected=y/bh;
+		}
+		indicator_upgrade_expose(indicator, menu.window);
 		return;
 	}
 	if(ev->window==menu.window) {
-		indicator_disc_expose(indicator, ev->window);
+		if(menu.selected == 0) {
+			indicator->active = False;
+			menu_close();
+			update_manager();
+		}
 		return;
 	}
 	switch(ev->button) {
@@ -116,5 +173,5 @@ void indicator_disc_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			break;
 	}
 	if(indicator->active)
-		indicator_disc_expose(indicator, menu.window);
+		indicator_upgrade_expose(indicator, menu.window);
 }

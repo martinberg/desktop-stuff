@@ -102,7 +102,7 @@ Bool indicator_power_haswindow(Indicator *indicator, Window window) {
 }
 
 void indicator_power_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
-	if(!ev) {
+	if(ev->type != ButtonPress) {
 		return;
 	}
 	if(ev->window==menu.window) {

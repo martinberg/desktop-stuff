@@ -1,8 +1,13 @@
-#include <time.h>
+#include <sys/statvfs.h>
 
 #include "dwm.h"
 
-#define MENU_WIDTH 256
+#define MENU_WIDTH 200
+
+static char *discs[]={
+	"/",
+	"/media/data",
+};
 
 static struct {
 	Window window;
@@ -10,8 +15,6 @@ static struct {
 	int x, y, w, h;
 	int selected;
 } menu={0};
-
-static struct tm seltime;
 
 static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
 	char buf[256];
@@ -44,7 +47,7 @@ static void menu_open(Indicator *indicator) {
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
 	menu.y=bh;
 	menu.w=MENU_WIDTH;
-	menu.h=bh*8;
+	menu.h=bh*(sizeof(discs)/sizeof(char *));
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
 		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
@@ -60,65 +63,43 @@ static void menu_close() {
 	XUnmapWindow(dpy, menu.window);
 	XDestroyWindow(dpy, menu.window);
 }
-
-int indicator_time_init(Indicator *indicator) {
-	time_t t;
-	struct tm *timeinfo;
-	time(&t);
-	timeinfo=localtime(&t);
-	memcpy(&seltime, timeinfo, sizeof(struct tm));
+int indicator_disk_init(Indicator *indicator) {
 	return 0;
 }
 
-void indicator_time_update(Indicator *indicator) {
-	time_t t;
-	struct tm *timeinfo;
-	char timebuf[16];
+void indicator_disk_update(Indicator *indicator) {
+	struct statvfs sbuf;
 	
-	time(&t);
-	timeinfo=localtime(&t);
-	
-	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
-	sprintf(indicator->text, " ◷ %s ", timebuf);
+	if(statvfs("/", &sbuf)>=0)
+		sprintf(indicator->text, " ⛁ %lu%% ", 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
 }
 
-void indicator_time_expose(Indicator *indicator, Window window) {
-	int day, wday;
-	time_t t, selt;
-	struct tm *timeinfo;
-	char buf[32];
+void indicator_disk_expose(Indicator *indicator, Window window) {
+	int i;
+	char buf[256];
+	struct statvfs sbuf;
 	
 	if(window!=menu.window)
 		return;
 	
-	time(&t);
-	timeinfo=localtime(&t);
-	selt=mktime(&seltime);
-	gmtime_r(&selt, &seltime);
-	if(--seltime.tm_wday<0)
-		seltime.tm_wday=6;
-	
-	strftime(buf, sizeof(buf), "%a %d %b %Y", timeinfo);
-	draw_text(0, 0, menu.w, bh, dc.norm, buf);
-	
-	for(day=seltime.tm_mday-1, wday=seltime.tm_wday-1; day>0; day--, wday--) {
-		if(wday<0)
-			wday=6;
-		sprintf(buf, "%i", day);
-		draw_text(bh*seltime.tm_wday, bh, menu.w, bh, dc.norm, buf);
+	for(i=0; i<(sizeof(discs)/sizeof(char *)); i++) {
+		if(statvfs(discs[i], &sbuf)>=0) {
+			sprintf(buf, " %s %lu%% ", discs[i], 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
+			draw_text(0, i*bh, MENU_WIDTH, bh, dc.norm, buf);
+		}
 	}
 }
 
-Bool indicator_time_haswindow(Indicator *indicator, Window window) {
+Bool indicator_disk_haswindow(Indicator *indicator, Window window) {
 	return menu.window==window?True:False;
 }
 
-void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
+void indicator_disk_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	if(ev->type != ButtonPress) {
 		return;
 	}
 	if(ev->window==menu.window) {
-		indicator_time_expose(indicator, ev->window);
+		indicator_disk_expose(indicator, ev->window);
 		return;
 	}
 	switch(ev->button) {
@@ -135,5 +116,5 @@ void indicator_time_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 			break;
 	}
 	if(indicator->active)
-		indicator_time_expose(indicator, menu.window);
+		indicator_disk_expose(indicator, menu.window);
 }

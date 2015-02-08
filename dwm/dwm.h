@@ -192,6 +192,9 @@ extern Monitor *selmon;
 
 int textnw(const char *text, unsigned int len);
 
+void viewtag(int tag);
+void quit(const Arg *arg);
+
 int indicator_time_init(Indicator *indicator);
 void indicator_time_update(Indicator *indicator);
 void indicator_time_expose(Indicator *indicator, Window window);
@@ -204,16 +207,28 @@ void indicator_music_expose(Indicator *indicator, Window window);
 Bool indicator_music_haswindow(Indicator *in, Window window);
 void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
-int indicator_disc_init(Indicator *indicator);
-void indicator_disc_update(Indicator *indicator);
-void indicator_disc_expose(Indicator *indicator, Window window);
-Bool indicator_disc_haswindow(Indicator *indicator, Window window);
-void indicator_disc_mouse(Indicator *indicator, XButtonPressedEvent *ev);
+int indicator_disk_init(Indicator *indicator);
+void indicator_disk_update(Indicator *indicator);
+void indicator_disk_expose(Indicator *indicator, Window window);
+Bool indicator_disk_haswindow(Indicator *indicator, Window window);
+void indicator_disk_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
 int indicator_power_init(Indicator *indicator);
 void indicator_power_update(Indicator *indicator);
 void indicator_power_expose(Indicator *indicator, Window window);
 Bool indicator_power_haswindow(Indicator *indicator, Window window);
 void indicator_power_mouse(Indicator *indicator, XButtonPressedEvent *ev);
+
+int indicator_upgrade_init(Indicator *indicator);
+void indicator_upgrade_update(Indicator *indicator);
+void indicator_upgrade_expose(Indicator *indicator, Window window);
+Bool indicator_upgrade_haswindow(Indicator *indicator, Window window);
+void indicator_upgrade_mouse(Indicator *indicator, XButtonPressedEvent *ev);
+
+int indicator_logout_init(Indicator *indicator);
+void indicator_logout_update(Indicator *indicator);
+void indicator_logout_expose(Indicator *indicator, Window window);
+Bool indicator_logout_haswindow(Indicator *indicator, Window window);
+void indicator_logout_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
 #endif
