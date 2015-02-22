@@ -79,7 +79,7 @@ static const Layout layouts[] = {
 #define SHCMD(cmd) {.v = (const char*[]){"/bin/sh", "-c", cmd, NULL}}
 
 /* commands */
-static const char *dmenucmd[]	= {"dmenu_run", "-fn", font, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL};
+static const char *dmenucmd[]	= {"dmenu_run", "-fn", "sans-10", "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL};
 static const char *termcmd[]	= {"uxterm", NULL};
 static const char *webcmd[]	= {"firefox", NULL};
 static const char *logoutcmd[]	= {"gnome-session-quit", NULL};

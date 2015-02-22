@@ -149,6 +149,7 @@ static char stext[STATUS_BUF_LEN];
 int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 int bh, blw = 0;      /* bar geometry */
+static int bstatw = 0; /*bar indicator width*/
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
 static void (*handler[LASTEvent]) (XEvent *) = {
@@ -812,16 +813,8 @@ drawbar(Monitor *m) {
 	drawtext(m->ltsymbol, dc.norm, False);
 	dc.x += dc.w;
 	x = dc.x;
-	if(m == selmon) { /* status is only drawn on selected monitor */
-		//dc.w = TEXTW(stext);
-		//dc.x = m->ww - dc.w;
-		/*if(dc.x < x) {
-			dc.x = x;
-			dc.w = m->ww - x;
-		}
-		drawtext(stext, dc.norm, False);*/
+	if(m == selmon)
 		drawstatus(m);
-	}
 	else
 		dc.x = m->ww;
 	if((dc.w = dc.x - x) > bh) {
@@ -1493,8 +1486,8 @@ resize(Client *c, int x, int y, int w, int h, Bool interact) {
 void
 resizebarwin(Monitor *m) {
 	unsigned int w = m->ww;
-	if(showsystray && m == selmon)
-		w -= getsystraywidth();
+	/*if(showsystray && m == selmon)
+		w -= getsystraywidth();*/
 	XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, w, bh);
 }
 
@@ -1611,7 +1604,7 @@ run(void) {
 		// Create a File Description Set containing x11_fd
 		FD_ZERO(&in_fds);
 		FD_SET(x11_fd, &in_fds);
-		tv.tv_usec = 50000;
+		tv.tv_usec = 100000;
 		tv.tv_sec = 0;
 		
 		updatestatus();
@@ -2388,11 +2381,13 @@ updatesystray(void) {
 			i->mon = selmon;
 	}
 	w = w ? w + systrayspacing : 1;
- 	x -= w;
+ 	x -= bstatw;
+	x += 2;
 	XMoveResizeWindow(dpy, systray->win, x, selmon->by, w, bh);
 	/* redraw background */
 	XSetForeground(dpy, dc.gc, dc.norm[ColBG]);
 	XFillRectangle(dpy, systray->win, dc.gc, 0, 0, w, bh);
+	XRaiseWindow(dpy, systray->win);
 	XSync(dpy, False);
 }
 
@@ -2601,34 +2596,40 @@ void
 drawstatus(Monitor *m) {
 	static const char *delim = "│";
 	Indicator *i;
-	int totalwidth = 0;
 	int delimwidth = textnw(delim, strlen(delim));
+	int totalwidth = delimwidth/2;
 	Bool prevpad = dc.pad;
 	
 	dc.y = 0;
 	dc.h = bh;
 	dc.pad = False;
 	
-	if(showsystray && m == selmon) {
-		totalwidth += getsystraywidth();
-	}
+	XSetForeground(dpy, dc.gc, dc.norm[ColBG]);
+	XFillRectangle(dpy, dc.drawable, dc.gc, m->mw - delimwidth/2, dc.y, delimwidth/2, dc.h);
+	
 	for(i=indicator; i; i=i->next) {		
 		if(!i->text[0])
 			continue;
 		
 		i->width = dc.w = markupnw(i->text, strlen(i->text), statusmarkup);
 		totalwidth += i->width + delimwidth;
-		i->x = dc.x = m->ww - totalwidth;
+		i->x = dc.x = m->mw - totalwidth + delimwidth;
 		drawmarkup(i->text, i->active ? dc.sel : dc.norm, False, statusmarkup);
 		
 		dc.x -= delimwidth;
 		dc.w = delimwidth;
 		drawtext(delim, dc.norm, False);
 	}
-	dc.x = m->ww - totalwidth - delimwidth;
-	dc.w=delimwidth;
-	drawtext(delim, dc.norm, False);
+	
 	dc.pad = prevpad;
+	if(showsystray && m == selmon) {
+		int sw;
+		sw = getsystraywidth();
+		totalwidth += sw;
+	}
+	
+	bstatw = totalwidth;
+	dc.x = m->mw - totalwidth + delimwidth/2;
 }
 
 int //count occurrences of c in buf 
