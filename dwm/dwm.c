@@ -2630,6 +2630,7 @@ drawstatus(Monitor *m) {
 	
 	bstatw = totalwidth;
 	dc.x = m->mw - totalwidth + delimwidth/2;
+	updatesystray();
 }
 
 int //count occurrences of c in buf 
