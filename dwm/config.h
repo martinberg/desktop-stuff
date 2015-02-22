@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 /* appearance */
-static const char font[]		= "sans-10";
+static const char font[]		= "Icons,DejaVu Sans, 10";
 static const char normbordercolor[]	= "#3c3b37";
 static const char normbgcolor[]		= "#3c3b37";
 static const char normfgcolor[]		= "#bbbbbb";
@@ -18,7 +18,7 @@ static const unsigned int systrayspacing= 2;
 static const Bool showsystray		= True;
 static const Bool showbar		= True;
 static const Bool topbar		= True;		/* False means bottom bar */
-static const Bool bottombar		= False;	/* True means an extra bar at the bottom */
+static const Bool statusmarkup      = True;     /* True means use pango markup in status message */
 
 static const char *wmname="LG3D";
 
@@ -30,9 +30,10 @@ static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	/*{"Gimp",     NULL,       NULL,       0,            True,        -1},*/
 	{"Firefox",  NULL,       NULL,       1,       False,       1},
+	{"Pale moon",  NULL,       NULL,       1,       False,       1},
 	{"Chromium-browser",  NULL,       NULL,       1,       False,       1},
 	
-	{"Scite",  NULL,       NULL,       1<<2,       False,       0},
+	//{"Scite",  NULL,       NULL,       1<<2,       False,       0},
 	{"Geany",  NULL,       NULL,       1<<2,       False,       0},
 	
 	{"Nemo",  NULL,       NULL,       1<<3,       False,       0},
@@ -59,11 +60,11 @@ static const Bool resizehints	= True;	/* True means respect size hints in tiled 
 
 static const Layout layouts[] = {
 	/* symbol, arrange function */
-	{"◫", tile},	/* first entry is default */
-	{"≋", NULL},	/* no layout function means floating behavior */
-	{"□", monocle},
-	{"T", bstack},
-	{"=", bstackhoriz},
+	{"\uf417", tile},	/* first entry is default */
+	{"\uf41c", NULL},	/* no layout function means floating behavior */
+	{"\uf419", monocle},
+	{"\uf418", bstack},
+	{"\uf41a", bstackhoriz},
 };
 
 /* key definitions */
@@ -89,7 +90,6 @@ static Key keys[] = {
 	{MODKEY|ShiftMask,		XK_Return, spawn,          {.v = termcmd}},
 	{MODKEY|ShiftMask,		XK_f, spawn,          {.v = webcmd}},
 	{MODKEY,			XK_b,      togglebar,      {0}},
-	{MODKEY,			XK_b,	   togglebottombar,{0}},
 	{MODKEY,			XK_j,      focusstack,     {.i = +1}},
 	{MODKEY,			XK_k,      focusstack,     {.i = -1}},
 	{MODKEY,			XK_i,      incnmaster,     {.i = +1}},

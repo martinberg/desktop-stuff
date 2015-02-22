@@ -1,6 +1,7 @@
 #include <time.h>
 
 #include "dwm.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 256
 
@@ -13,32 +14,6 @@ static struct {
 
 static struct tm seltime;
 
-static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-	
-	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
-	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
-
-	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
-}
-
 static void menu_open(Indicator *indicator) {
 	menu.selected=-1;
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
@@ -47,7 +22,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*8;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -79,7 +54,7 @@ void indicator_time_update(Indicator *indicator) {
 	timeinfo=localtime(&t);
 	
 	strftime(timebuf, 16, "%H:%M:%S", timeinfo);
-	sprintf(indicator->text, " ◷ %s ", timebuf);
+	sprintf(indicator->text, " \uf3d6 %s ", timebuf);
 }
 
 void indicator_time_expose(Indicator *indicator, Window window) {
@@ -99,13 +74,13 @@ void indicator_time_expose(Indicator *indicator, Window window) {
 		seltime.tm_wday=6;
 	
 	strftime(buf, sizeof(buf), "%a %d %b %Y", timeinfo);
-	draw_text(0, 0, menu.w, bh, dc.norm, buf);
+	indicator_draw_text(menu.window, menu.gc, 0, 0, menu.w, bh, dc.norm, buf, False);
 	
 	for(day=seltime.tm_mday-1, wday=seltime.tm_wday-1; day>0; day--, wday--) {
 		if(wday<0)
 			wday=6;
 		sprintf(buf, "%i", day);
-		draw_text(bh*seltime.tm_wday, bh, menu.w, bh, dc.norm, buf);
+		indicator_draw_text(menu.window, menu.gc, bh*seltime.tm_wday, bh, menu.w, bh, dc.norm, buf, False);
 	}
 }
 

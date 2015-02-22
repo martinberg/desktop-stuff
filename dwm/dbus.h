@@ -20,4 +20,8 @@ struct DBus {
 
 extern struct DBus dbus;
 
+int dbus_init();
+int ck_init();
+int ck_exit();
+
 #endif

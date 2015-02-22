@@ -1,6 +1,7 @@
 #include "dwm.h"
 #include "dbus.h"
 #include "power.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 128
 #define QUESTION_WIDTH 300
@@ -31,7 +32,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*4;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -47,7 +48,7 @@ static void question_open(Indicator *indicator) {
 	question.h=bh*4;
 	question.window=XCreateSimpleWindow(dpy, root, 
 		question.x, question.y, question.w, question.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	question.gc=XCreateGC(dpy, question.window, 0, 0);
 	XSelectInput(dpy, question.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -68,52 +69,26 @@ static void menu_close() {
 	XDestroyWindow(dpy, menu.window);
 }
 
-static void draw_text(Window window, GC gc, int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-
-	XSetForeground(dpy, gc, col[ColBG].pixel);
-	XFillRectangle(dpy, window, gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
-
-	d=XftDrawCreate(dpy, window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
-}
-
 int indicator_logout_init(Indicator *indicator) {	
 	return 0;
 }
 
 void indicator_logout_update(Indicator *indicator) {
-	sprintf(indicator->text, " ☾ ");
+	sprintf(indicator->text, " \uf3a9 ");
 }
 
 void indicator_logout_expose(Indicator *indicator, Window window) {
 	char buf[256];
 	if(window == menu.window) {
-		draw_text(menu.window, menu.gc, 0, 0, menu.w, bh, menu.selected==0?dc.sel:dc.norm, "Log out");
-		draw_text(menu.window, menu.gc, 0, bh, menu.w, bh, menu.selected==1?dc.sel:dc.norm, "Suspend");
-		draw_text(menu.window, menu.gc, 0, 2*bh, menu.w, bh, menu.selected==2?dc.sel:dc.norm, "Restart");
-		draw_text(menu.window, menu.gc, 0, 3*bh, menu.w, bh, menu.selected==3?dc.sel:dc.norm, "Shut down");
+		indicator_draw_text(menu.window, menu.gc, 0, 0, menu.w, bh, menu.selected==0?dc.sel:dc.norm, "Log out", False);
+		indicator_draw_text(menu.window, menu.gc, 0, bh, menu.w, bh, menu.selected==1?dc.sel:dc.norm, "Suspend", False);
+		indicator_draw_text(menu.window, menu.gc, 0, 2*bh, menu.w, bh, menu.selected==2?dc.sel:dc.norm, "Restart", False);
+		indicator_draw_text(menu.window, menu.gc, 0, 3*bh, menu.w, bh, menu.selected==3?dc.sel:dc.norm, "Shut down", False);
 	} else if(window == question.window) {
 		snprintf(buf, 256, "Are you sure you want to %s?", question.text);
-		draw_text(question.window, question.gc, 0, 0, question.w, bh*2, dc.norm, buf);
-		draw_text(question.window, question.gc, question.w/2 - 64, bh*3, 64, bh, question.selected==0?dc.sel:dc.norm, "Yes");
-		draw_text(question.window, question.gc, question.w/2, bh*3, 64, bh, question.selected==1?dc.sel:dc.norm, "No");
+		indicator_draw_text(question.window, question.gc, 0, 0, question.w, bh*2, dc.norm, buf, False);
+		indicator_draw_text(question.window, question.gc, question.w/2 - 64, bh*3, 64, bh, question.selected==0?dc.sel:dc.norm, "Yes", False);
+		indicator_draw_text(question.window, question.gc, question.w/2, bh*3, 64, bh, question.selected==1?dc.sel:dc.norm, "No", False);
 	}
 }
 

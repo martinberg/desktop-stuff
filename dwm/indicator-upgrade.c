@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include "dwm.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 200
 
@@ -41,7 +42,7 @@ static void *get_upgrades(void *tmp) {
 		pthread_mutex_lock(&upg.lock);
 		upg.upgrades = upgrades;
 		pthread_mutex_unlock(&upg.lock);
-		sleep(60*10);
+		sleep(60*2);
 	}
 	return NULL;
 }
@@ -61,32 +62,6 @@ static void update_manager() {
 	}
 }
 
-static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-	
-	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
-	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
-
-	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
-}
-
 static void menu_open(Indicator *indicator) {
 	menu.selected=-1;
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
@@ -95,7 +70,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*1;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -123,7 +98,7 @@ void indicator_upgrade_update(Indicator *indicator) {
 	upgrades = upg.upgrades;
 	pthread_mutex_unlock(&upg.lock);
 	if(upgrades)
-		sprintf(indicator->text, " ⇪ %i ", upgrades);
+		sprintf(indicator->text, " <span foreground=\"red\">⇪ %i</span> ", upgrades);
 	else 
 		indicator->text[0] = 0;
 }
@@ -132,7 +107,7 @@ void indicator_upgrade_expose(Indicator *indicator, Window window) {
 	if(window!=menu.window)
 		return;
 	
-	draw_text(0, 0, MENU_WIDTH, bh, menu.selected == 0 ? dc.sel : dc.norm, "Open update manager");
+	indicator_draw_text(menu.window, menu.gc, 0, 0, MENU_WIDTH, bh, menu.selected == 0 ? dc.sel : dc.norm, "Open update manager", False);
 }
 
 Bool indicator_upgrade_haswindow(Indicator *indicator, Window window) {

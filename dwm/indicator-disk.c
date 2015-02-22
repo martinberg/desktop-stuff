@@ -1,6 +1,7 @@
 #include <sys/statvfs.h>
 
 #include "dwm.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 200
 
@@ -16,32 +17,6 @@ static struct {
 	int selected;
 } menu={0};
 
-static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-	
-	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
-	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
-
-	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
-}
-
 static void menu_open(Indicator *indicator) {
 	menu.selected=-1;
 	menu.x=selmon->mx+indicator->x-MENU_WIDTH+indicator->width;
@@ -50,7 +25,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*(sizeof(discs)/sizeof(char *));
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -69,9 +44,17 @@ int indicator_disk_init(Indicator *indicator) {
 
 void indicator_disk_update(Indicator *indicator) {
 	struct statvfs sbuf;
+	unsigned long p;
 	
-	if(statvfs("/", &sbuf)>=0)
-		sprintf(indicator->text, " ⛁ %lu%% ", 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
+	if(statvfs("/", &sbuf) < 0)
+		return;
+	
+	p = 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks;
+	
+	if(p >= 95)
+		sprintf(indicator->text, " <span foreground=\"red\">\uf0a0 %lu%%</span> ", p);
+	else
+		sprintf(indicator->text, " \uf0a0 %lu%% ", p);
 }
 
 void indicator_disk_expose(Indicator *indicator, Window window) {
@@ -85,7 +68,7 @@ void indicator_disk_expose(Indicator *indicator, Window window) {
 	for(i=0; i<(sizeof(discs)/sizeof(char *)); i++) {
 		if(statvfs(discs[i], &sbuf)>=0) {
 			sprintf(buf, " %s %lu%% ", discs[i], 100*(sbuf.f_blocks-sbuf.f_bavail)/sbuf.f_blocks);
-			draw_text(0, i*bh, MENU_WIDTH, bh, dc.norm, buf);
+			indicator_draw_text(menu.window, menu.gc, 0, i*bh, MENU_WIDTH, bh, dc.norm, buf, False);
 		}
 	}
 }

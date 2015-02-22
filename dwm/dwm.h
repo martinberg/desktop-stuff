@@ -23,6 +23,8 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
+#include <pango/pango.h>
+#include <pango/pangoxft.h>
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -31,14 +33,18 @@
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
+#ifndef MAX
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
+#endif
+#ifndef MIN
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
+#endif
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (textnw(X, strlen(X)) + dc.font.height)
-#define STATUS_BUF_LEN          8192 //la11111
+#define STATUS_BUF_LEN          8192
 
 #define SYSTEM_TRAY_REQUEST_DOCK    0
 #define _NET_SYSTEM_TRAY_ORIENTATION_HORZ 0
@@ -102,16 +108,22 @@ struct Client {
 
 typedef struct {
 	int x, y, w, h;
-	XftColor norm[ColLast];
-	XftColor sel[ColLast];
 	Drawable drawable;
+	unsigned long norm[ColLast];
+	unsigned long sel[ColLast];
+	struct {
+		XftColor norm[ColLast];
+		XftColor sel[ColLast];
+		XftDraw *drawable;
+	} xft;
 	GC gc;
 	struct {
 		int ascent;
 		int descent;
 		int height;
-		XftFont *xfont;
+		PangoLayout *layout;
 	} font;
+	Bool pad;
 } DC; /* draw context */
 
 typedef struct {
@@ -133,7 +145,6 @@ struct Monitor {
 	int nmaster;
 	int num;
 	int by;               /* bar geometry */
-	int bby;	      /* bottom bar geometry */
 	int mx, my, mw, mh;   /* screen size */
 	int wx, wy, ww, wh;   /* window area  */
 	unsigned int seltags;
@@ -141,14 +152,11 @@ struct Monitor {
 	unsigned int tagset[2];
 	Bool showbar;
 	Bool topbar;
-	Bool showbottombar;
-	Bool bottombar;
 	Client *clients;
 	Client *sel;
 	Client *stack;
 	Monitor *next;
 	Window barwin;
-	Window bbarwin;
 	const Layout *lt[2];
 	Pertag *pertag;
 };
@@ -191,6 +199,8 @@ extern DC dc;
 extern Monitor *selmon;
 
 int textnw(const char *text, unsigned int len);
+int markupnw(const char *text, unsigned int len, Bool markup);
+Bool utf8isfirstbyte(char c);
 
 void viewtag(int tag);
 void quit(const Arg *arg);

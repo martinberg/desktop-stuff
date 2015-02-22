@@ -1,6 +1,7 @@
 #include <alsa/asoundlib.h>
 #include "dwm.h"
 #include "dbus.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 256
 #define TRACK_ELEMENT_LENGTH 128
@@ -20,6 +21,18 @@ enum MEDIAPLAYER_ACTION {
 	MEDIAPLAYER_ACTION_PLAY,
 	MEDIAPLAYER_ACTION_PAUSE,
 	MEDIAPLAYER_ACTIONS,
+};
+
+typedef struct Icon Icon;
+struct Icon {
+	int percentage;
+	const char *str;
+};
+
+static Icon icon[] = {
+	{33, "\uf358"},
+	{66, "\uf359"},
+	{101, "\uf357"},
 };
 
 struct TRACK {
@@ -353,7 +366,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*2+bh*5*i;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -365,32 +378,6 @@ static void menu_close() {
 	XFreeGC(dpy, menu.gc);
 	XUnmapWindow(dpy, menu.window);
 	XDestroyWindow(dpy, menu.window);
-}
-
-static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-
-	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
-	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
-
-	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
 }
 
 static void check_bus() {
@@ -542,12 +529,19 @@ int indicator_music_init(Indicator *indicator) {
 }
 
 void indicator_music_update(Indicator *indicator) {
+	long int i, vol;
 	check_bus();
 	snd_mixer_handle_events(alsa.handle);
 	if(mute_get())
-		sprintf(indicator->text, " ♫ -- ");
-	else
-		sprintf(indicator->text, " ♫ %li%% ", volume_get());
+		sprintf(indicator->text, " \uf35a %li%% ", volume_get());
+	else {
+		vol = volume_get();
+		for(i = 0; i < sizeof(icon)/sizeof(Icon); i++) {
+			if(vol < icon[i].percentage)
+				break;
+		}
+		sprintf(indicator->text, " %s %li%% ", icon[i].str, vol);
+	}
 }
 
 void indicator_music_expose(Indicator *indicator, Window window) {
@@ -558,31 +552,31 @@ void indicator_music_expose(Indicator *indicator, Window window) {
 		return;
 	snd_mixer_handle_events(alsa.handle);
 	
-	draw_text(0, 0, menu.w, bh, menu.selected==0?dc.sel:dc.norm, mute_get()?"Unmute":"Mute");
-	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColBG].pixel);
+	indicator_draw_text(menu.window, menu.gc, 0, 0, menu.w, bh, menu.selected==0?dc.sel:dc.norm, mute_get()?"Unmute":"Mute", False);
+	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColBG]);
 	XFillRectangle(dpy, window, menu.gc, 0, bh, menu.w, bh);
-	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColFG].pixel);
+	XSetForeground(dpy, menu.gc, (menu.selected==1?dc.sel:dc.norm)[ColFG]);
 	XDrawLine(dpy, window, menu.gc, 8, bh+bh/2, menu.w-8, bh+bh/2);
 	XFillRectangle(dpy, window, menu.gc, 10-2+sliderw*volume_get()/100, bh+2, 4, bh-4);
 	
 	for(mp=mediaplayer, y=2*bh, i=2; mp; mp=mp->next, y+=bh*5, i+=5) {
 		struct TRACK track=mediaplayer_get_track(mp->id);
 		enum PLAYBACK_STATUS status=mediaplayer_get_status(mp->id);
-		draw_text(0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id);
+		indicator_draw_text(menu.window, menu.gc, 0, y, menu.w, bh, i==menu.selected?dc.sel:dc.norm, mp->name?mp->name:mp->id, False);
 		
 		if(status==PLAYBACK_STATUS_STOPPED) {
-			XSetForeground(dpy, menu.gc, dc.norm[ColBG].pixel);
+			XSetForeground(dpy, menu.gc, dc.norm[ColBG]);
 			XFillRectangle(dpy, window, menu.gc, 0, y+bh, menu.w, bh*3);
-			draw_text(8, y+bh*2, menu.w, bh, dc.norm, "Playback stopped");
+			indicator_draw_text(menu.window, menu.gc, 8, y+bh*2, menu.w, bh, dc.norm, "Playback stopped", False);
 		} else {
-			draw_text(8, y+bh, menu.w, bh, dc.norm, track.title);
-			draw_text(8, y+bh*2, menu.w, bh, dc.norm, track.artist);
-			draw_text(8, y+bh*3, menu.w, bh, dc.norm, track.album);
+			indicator_draw_text(menu.window, menu.gc, 8, y+bh, menu.w, bh, dc.norm, track.title, False);
+			indicator_draw_text(menu.window, menu.gc, 8, y+bh*2, menu.w, bh, dc.norm, track.artist, False);
+			indicator_draw_text(menu.window, menu.gc, 8, y+bh*3, menu.w, bh, dc.norm, track.album, False);
 		}
 		
-		draw_text(menu.w/2-BUTTON_W/2-BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==0?dc.sel:dc.norm, "▮◀");
-		draw_text(menu.w/2-BUTTON_W/2, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==1?dc.sel:dc.norm, status==PLAYBACK_STATUS_PLAYING?"▮▮":" ▶");
-		draw_text(menu.w/2-BUTTON_W/2+BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==2?dc.sel:dc.norm, "▶▮");
+		indicator_draw_text(menu.window, menu.gc, menu.w/2-BUTTON_W/2-BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==0?dc.sel:dc.norm, "▮◀", False);
+		indicator_draw_text(menu.window, menu.gc, menu.w/2-BUTTON_W/2, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==1?dc.sel:dc.norm, status==PLAYBACK_STATUS_PLAYING?"▮▮":" ▶", False);
+		indicator_draw_text(menu.window, menu.gc, menu.w/2-BUTTON_W/2+BUTTON_W, y+bh*4, BUTTON_W, bh, i+4==menu.selected&&menu.button==2?dc.sel:dc.norm, "▶▮", False);
 	}
 	XFlush(dpy);
 }

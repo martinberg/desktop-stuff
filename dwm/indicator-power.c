@@ -2,11 +2,9 @@
 #include <string.h>
 
 #include "dwm.h"
+#include "indicator.h"
 
 #define MENU_WIDTH 128
-
-static FILE *acpi_capacity;
-static FILE *acpi_status;
 
 static struct {
 	Window window;
@@ -15,31 +13,18 @@ static struct {
 	int selected;
 } menu={0};
 
-static void draw_text(int x, int y, int w, int h, XftColor col[ColLast], const char *text) {
-	char buf[256];
-	int i, texth, len, olen;
-	XftDraw *d;
-	
-	XSetForeground(dpy, menu.gc, col[ColBG].pixel);
-	XFillRectangle(dpy, menu.window, menu.gc, x, y, w, h);
-	if(!text)
-		return;
-	olen=strlen(text);
-	texth=dc.font.ascent + dc.font.descent;
-	y+=(h/2)-(texth/2)+dc.font.ascent;
-	x+=(texth/2);
-	/* shorten text if necessary */
-	for(len=MIN(olen, sizeof buf); len&&textnw(text, len)>w-texth; len--);
-	if(!len)
-		return;
-	memcpy(buf, text, len);
-	if(len<olen)
-		for(i=len; i&&i>len-3; buf[--i]='.');
+typedef struct Icon Icon;
+struct Icon {
+	int percentage;
+	const char *str;
+};
 
-	d=XftDrawCreate(dpy, menu.window, DefaultVisual(dpy, screen), DefaultColormap(dpy,screen));
-	XftDrawStringUtf8(d, &col[ColFG], dc.font.xfont, x, y, (XftChar8 *) buf, len);
-	XftDrawDestroy(d);
-}
+static Icon icon[] = {
+	{10, "\uf212"},
+	{40, "\uf215"},
+	{80, "\uf214"},
+	{101, "\uf213"},
+};
 
 static void menu_open(Indicator *indicator) {
 	menu.selected=-1;
@@ -49,7 +34,7 @@ static void menu_open(Indicator *indicator) {
 	menu.h=bh*1;
 	menu.window=XCreateSimpleWindow(dpy, root, 
 		menu.x, menu.y, menu.w, menu.h,
-		1, dc.sel[ColBorder].pixel, dc.norm[ColBG].pixel
+		1, dc.sel[ColBorder], dc.norm[ColBG]
 	);
 	menu.gc=XCreateGC(dpy, menu.window, 0, 0);
 	XSelectInput(dpy, menu.window, ExposureMask|ButtonPressMask|PointerMotionMask);
@@ -64,23 +49,50 @@ static void menu_close() {
 }
 
 int indicator_power_init(Indicator *indicator) {
-	if(!(acpi_capacity = fopen("/sys/class/power_supply/BAT0/capacity", "r")))
+	FILE *cap, *stat;
+	
+	if(!(cap = fopen("/sys/class/power_supply/BAT0/capacity", "r")))
 		return -1;
-	if(!(acpi_status = fopen("/sys/class/power_supply/BAT0/status", "r"))) {
-		fclose(acpi_capacity);
+	if(!(stat = fopen("/sys/class/power_supply/BAT0/status", "r"))) {
+		fclose(cap);
 		return -1;
 	}
+	fclose(stat);
+	fclose(cap);
 	return 0;
 }
 
 void indicator_power_update(Indicator *indicator) {
 	char percentage[10];
+	char status[20];
 	char *nl;
-	fseek(acpi_capacity, 0, SEEK_SET);
-	fread(percentage, 10, 1, acpi_capacity);
+	int i, p;
+	
+	FILE *cap = fopen("/sys/class/power_supply/BAT0/capacity", "r");
+	FILE *stat = fopen("/sys/class/power_supply/BAT0/status", "r");
+	
+	fread(percentage, 10, 1, cap);
+	fread(status, 20, 1, stat);
 	if((nl = strchr(percentage, '\n')))
 		*nl = 0;
-	sprintf(indicator->text, " ⚡ %s%%", percentage);
+	if((nl = strchr(status, '\n')))
+		*nl = 0;
+	if(!strcmp(status, "Charging"))
+		sprintf(indicator->text, " \uf211 %s%% ", percentage);
+	else {
+		p = atoi(percentage);
+		for(i = 0; i < sizeof(icon)/sizeof(Icon); i++) {
+			if(p < icon[i].percentage)
+				break;
+		}
+		if(p < icon[0].percentage)
+			sprintf(indicator->text, " <span foreground=\"red\">%s %s%%</span> ", icon[0].str, percentage);
+		else
+			sprintf(indicator->text, " %s %s%% ", icon[i].str, percentage);
+	}
+	
+	fclose(cap);
+	fclose(stat);
 }
 
 void indicator_power_expose(Indicator *indicator, Window window) {
@@ -90,11 +102,12 @@ void indicator_power_expose(Indicator *indicator, Window window) {
 	if(window!=menu.window)
 		return;
 	
-	fseek(acpi_status, 0, SEEK_SET);
-	fread(status, 20, 1, acpi_status);
+	FILE *stat = fopen("/sys/class/power_supply/BAT0/status", "r");
+	fread(status, 20, 1, stat);
 	if((nl = strchr(status, '\n')))
 		*nl = 0;
-	draw_text(0, 0, MENU_WIDTH, bh, dc.norm, status);
+	indicator_draw_text(menu.window, menu.gc, 0, 0, MENU_WIDTH, bh, dc.norm, status, False);
+	fclose(stat);
 }
 
 Bool indicator_power_haswindow(Indicator *indicator, Window window) {
