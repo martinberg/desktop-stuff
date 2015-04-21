@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "dwm.h"
 #include "indicator.h"
@@ -23,7 +24,7 @@ static Icon icon[] = {
 	{10, "\uf212"},
 	{40, "\uf215"},
 	{80, "\uf214"},
-	{101, "\uf213"},
+	{INT_MAX, "\uf213"},
 };
 
 static void menu_open(Indicator *indicator) {
@@ -63,8 +64,8 @@ int indicator_power_init(Indicator *indicator) {
 }
 
 void indicator_power_update(Indicator *indicator) {
-	char percentage[10];
-	char status[20];
+	char percentage[10] = {0};
+	char status[20] = {0};
 	char *nl;
 	int i, p;
 	

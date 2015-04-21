@@ -81,7 +81,7 @@ static const Layout layouts[] = {
 /* commands */
 static const char *dmenucmd[]	= {"dmenu_run", "-fn", "sans-10", "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL};
 static const char *termcmd[]	= {"uxterm", NULL};
-static const char *webcmd[]	= {"firefox", NULL};
+static const char *webcmd[]	= {"palemoon", NULL};
 static const char *logoutcmd[]	= {"gnome-session-quit", NULL};
 
 static Key keys[] = {
@@ -106,8 +106,8 @@ static Key keys[] = {
 	{MODKEY,			XK_z,      setlayout,      {.v = &layouts[4]}},
 	{MODKEY,			XK_space,  setlayout,      {0}},
 	{MODKEY|ShiftMask,		XK_space,  togglefloating, {0}},
-	{MODKEY,			XK_0,      view,           {.ui = ~0}},
-	{MODKEY|ShiftMask,		XK_0,      tag,            {.ui = ~0}},
+	//{MODKEY,			XK_0,      view,           {.ui = ~0}},
+	//{MODKEY|ShiftMask,		XK_0,      tag,            {.ui = ~0}},
 	{MODKEY,			XK_comma,  focusmon,       {.i = -1}},
 	{MODKEY,			XK_period, focusmon,       {.i = +1}},
 	{MODKEY|ShiftMask,		XK_comma,  tagmon,         {.i = -1}},

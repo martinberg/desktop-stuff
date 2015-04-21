@@ -2108,6 +2108,7 @@ updatebars(void) {
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]);
 		XMapRaised(dpy, m->barwin);
 	}
+	XRaiseWindow(dpy, systray->win);
 }
 
 void
@@ -2387,7 +2388,6 @@ updatesystray(void) {
 	/* redraw background */
 	XSetForeground(dpy, dc.gc, dc.norm[ColBG]);
 	XFillRectangle(dpy, systray->win, dc.gc, 0, 0, w, bh);
-	XRaiseWindow(dpy, systray->win);
 	XSync(dpy, False);
 }
 
