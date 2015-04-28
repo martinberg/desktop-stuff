@@ -32,6 +32,7 @@ static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
+static void autostart(void);
 static void buttonpress(XEvent *e);
 static void bstack(Monitor *m);
 static void bstackhoriz(Monitor *m);
@@ -328,6 +329,11 @@ void
 attachstack(Client *c) {
 	c->snext = c->mon->stack;
 	c->mon->stack = c;
+}
+
+void autostart(void) {
+	system("cd ~/.dwm; ./autostart_blocking.sh");
+	system("cd ~/.dwm; ./autostart.sh &");
 }
 
 void
@@ -1847,6 +1853,7 @@ setup(void) {
 	
 	dbus_init();
 	ck_init();
+	keyring_init();
 	
 	indicator_add(indicator_logout_init, indicator_logout_update, indicator_logout_expose, indicator_logout_haswindow, indicator_logout_mouse);
 	indicator_add(indicator_time_init, indicator_time_update, indicator_time_expose, indicator_time_haswindow, indicator_time_mouse);
@@ -2585,6 +2592,7 @@ main(int argc, char *argv[]) {
 	checkotherwm();
 	setup();
 	scan();
+	autostart();
 	run();
 	cleanup();
 	XCloseDisplay(dpy);

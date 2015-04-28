@@ -21,6 +21,7 @@ struct DBus {
 extern struct DBus dbus;
 
 int dbus_init();
+int keyring_init();
 int ck_init();
 int ck_exit();
 

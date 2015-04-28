@@ -74,6 +74,25 @@ int ck_init() {
 	return 0;
 }
 
+int keyring_init() {
+	return 0;
+	FILE *f;
+	char *buf;
+	
+	if(!(f = popen("gnome-keyring-daemon --start --components=pkcs11,secrets,ssh", "r")))
+		return -1;
+	
+	while(!feof(f)) {
+		buf = NULL;
+		fscanf(f, "%m[^\n]\n", &buf);
+		if(buf)
+			putenv(buf);
+	}
+	
+	pclose(f);
+	return 0;
+}
+
 int ck_exit() {
 	int result;
 	DBusMessage *msg, *reply;
