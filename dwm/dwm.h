@@ -99,7 +99,7 @@ struct Client {
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
 	int bw, oldbw;
 	unsigned int tags;
-	Bool isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
+	Bool isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, sizehints;
 	Client *next;
 	Client *snext;
 	Monitor *mon;
@@ -167,6 +167,7 @@ typedef struct {
 	const char *title;
 	unsigned int tags;
 	Bool isfloating;
+	Bool sizehints;
 	int monitor;
 } Rule;
 

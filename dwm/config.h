@@ -27,30 +27,35 @@ static const char *wmname="LG3D";
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
 static const Rule rules[] = {
-	/* class      instance    title       tags mask     isfloating   monitor */
+	/* class      instance    title       tags mask     isfloating   sizehints   monitor */
 	/*{"Gimp",     NULL,       NULL,       0,            True,        -1},*/
-	{"Firefox",  NULL,       NULL,       1,       False,       1},
-	{"Pale moon",  NULL,       NULL,       1,       False,       1},
-	{"Chromium-browser",  NULL,       NULL,       1,       False,       1},
+	{"Firefox",  NULL,       NULL,       1,       False, True,       1},
+	{"Pale moon",  NULL,       NULL,       1,       False, True,       1},
+	{"Chromium-browser",  NULL,       NULL,       1,       False, True,       1},
 	
-	//{"Scite",  NULL,       NULL,       1<<2,       False,       0},
-	{"Geany",  NULL,       NULL,       1<<2,       False,       0},
+	//{"Scite",  NULL,       NULL,       1<<2,       False, True,       0},
+	{"Geany",  NULL,       NULL,       1<<2,       False, True,      0},
 	
-	{"Nemo",  NULL,       NULL,       1<<3,       False,       0},
-	{"Nautilus",  NULL,       NULL,       1<<3,       False,       0},
+	{"Nemo",  NULL,       NULL,       1<<3,       False, True,       0},
+	{"Nautilus",  NULL,       NULL,       1<<3,       False, True,       0},
 	
 	
-	{"Wine",  NULL,       NULL,       1<<5,       False,       0},
-	{"Steam",  NULL,       NULL,       1<<5,       False,       0},
-	{"Opencpn",  NULL,       NULL,       1<<5,       False,       0},
-	{"Gimp",  NULL,       NULL,       1<<5,       False,       0},
+	{"Wine",  NULL,       NULL,       1<<5,       False, True,       0},
+	{"Steam",  NULL,       NULL,       1<<5,       False, True,       0},
+	{"Opencpn",  NULL,       NULL,       1<<5,       False, True,       0},
+	{"Gimp",  NULL,       NULL,       1<<5,       False, True,       0},
 	
-	{"Virtualbox",  NULL,       NULL,       1<<6,       False,       0},
+	{"Virtualbox",  NULL,       NULL,       1<<6,       False, True,       0},
 	
-	{"file_progress",  NULL,       NULL,       1<<8,       True,       0},
-	{"Audacious",  NULL,       NULL,       1<<8,       True,       0},
-	{"Update-manager",  NULL,       NULL,       1<<8,       True,       0},
-	/*{"Update-manager",  NULL,       NULL,       0,       True,       -1},*/
+	{"Thunderbird",  NULL,       NULL,       1<<7,       False, True,        0},
+	
+	{"file_progress",  NULL,       NULL,       1<<8,       True, True,       0},
+	{"Audacious",  NULL,       NULL,       1<<8,       True, True,       0},
+	{"Update-manager",  NULL,       NULL,       1<<8,       True, True,       0},
+	/*{"Update-manager",  NULL,       NULL,       0,       True, True,       -1},*/
+	
+	{"UXTerm", NULL, NULL, 0, False, False, -1},
+	{"XTerm", NULL, NULL, 0, False, False, -1},
 };
 
 /* layout(s) */

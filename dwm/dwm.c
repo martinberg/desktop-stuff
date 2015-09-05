@@ -220,6 +220,7 @@ applyrules(Client *c) {
 		&& (!r->instance || strstr(instance, r->instance)))
 		{
 			c->isfloating = r->isfloating;
+			c->sizehints = r->sizehints;
 			c->tags |= r->tags;
 			for(m = mons; m && m->num != r->monitor; m = m->next);
 			if(m)
@@ -232,6 +233,35 @@ applyrules(Client *c) {
 		XFree(ch.res_name);
 	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
 }
+
+void
+adjustborders(Monitor *m) {
+	Client *c, *l = NULL;
+	int visible = 0;
+
+	for(c = m->clients; c; c = c->next) {
+		if (ISVISIBLE(c) && !c->isfloating && m->lt[m->sellt]->arrange) {
+			if (m->lt[m->sellt]->arrange == monocle) {
+				visible = 1;
+				c->oldbw = c->bw;
+				c->bw = 0;
+			} else {
+				visible++;
+				c->oldbw = c->bw;
+				c->bw = borderpx;
+			}
+
+			l = c;
+		}
+	}
+
+	if (l && visible == 1 && l->bw) {
+		l->oldbw = l->bw;
+		l->bw = 0;
+		resizeclient(l, l->x, l->y, l->w, l->h);
+	}
+}
+
 
 Bool
 applysizehints(Client *c, int *x, int *y, int *w, int *h, Bool interact) {
@@ -265,7 +295,7 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, Bool interact) {
 		*h = bh;
 	if(*w < bh)
 		*w = bh;
-	if(resizehints || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
+	if((resizehints && c->sizehints) || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
 		/* see last two sentences in ICCCM 4.1.2.3 */
 		baseismin = c->basew == c->minw && c->baseh == c->minh;
 		if(!baseismin) { /* temporarily remove base dimensions */
@@ -301,10 +331,13 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, Bool interact) {
 
 void
 arrange(Monitor *m) {
-	if(m)
+	if(m) {
+		adjustborders(m);
 		showhide(m->stack);
-	else for(m = mons; m; m = m->next)
+	} else for(m = mons; m; m = m->next) {
+		adjustborders(m);
 		showhide(m->stack);
+	}
 	if(m)
 		arrangemon(m);
 	else for(m = mons; m; m = m->next)
@@ -1221,6 +1254,7 @@ manage(Window w, XWindowAttributes *wa) {
 	if(!(c = calloc(1, sizeof(Client))))
 		die("fatal: could not malloc() %u bytes\n", sizeof(Client));
 	c->win = w;
+	c->sizehints = True;
 	updatetitle(c);
 	if(XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
 		c->mon = t->mon;
@@ -1245,7 +1279,20 @@ manage(Window w, XWindowAttributes *wa) {
 	/* only fix client y-offset, if the client center might cover the bar */
 	c->y = MAX(c->y, ((c->mon->by == c->mon->my) && (c->x + (c->w / 2) >= c->mon->wx)
 	           && (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
-	c->bw = borderpx;
+	
+	updatewindowtype(c);
+	if (c->isfloating) {
+		c->bw = c->isfullscreen ? 0 : borderpx;
+	} else {
+		c->bw = 0;
+		for(t = c->mon->clients; t; t = c->next) {
+			if (!t->isfloating && c != t && c->tags & t->tags) {
+				c->bw = borderpx;
+				break;
+			}
+		}
+		adjustborders(c->mon);
+	}
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
@@ -2403,7 +2450,8 @@ updatewindowtype(Client *c) {
 	Atom state = getatomprop(c, netatom[NetWMState]);
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
 
-	if(state == netatom[NetWMFullscreen])
+	if(state == netatom[NetWMFullscreen] ||
+		(WIDTH(c) == (c->mon->mx + c->mon->mw) && (HEIGHT(c) == (c->mon->my + c->mon->mh))))
 		setfullscreen(c, True);
 
 	if(wtype == netatom[NetWMWindowTypeDialog])
