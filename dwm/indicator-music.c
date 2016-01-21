@@ -530,17 +530,22 @@ int indicator_music_init(Indicator *indicator) {
 
 void indicator_music_update(Indicator *indicator) {
 	long int i, vol;
+	char *ic;
+	
 	check_bus();
 	snd_mixer_handle_events(alsa.handle);
 	if(mute_get())
 		sprintf(indicator->text, " \uf35a %li%% ", volume_get());
 	else {
 		vol = volume_get();
+		ic = "\uf357";
 		for(i = 0; i < sizeof(icon)/sizeof(Icon); i++) {
-			if(vol < icon[i].percentage)
+			if(vol < icon[i].percentage) {
+				ic = icon[i].str;
 				break;
+			}
 		}
-		sprintf(indicator->text, " %s %li%% ", icon[i].str, vol);
+		sprintf(indicator->text, " %s %li%% ", ic, vol);
 	}
 }
 
@@ -658,4 +663,17 @@ void indicator_music_mouse(Indicator *indicator, XButtonPressedEvent *ev) {
 	}
 	if(indicator->active)
 		indicator_music_expose(indicator, menu.window);
+}
+
+void alsa_volume(const Arg *a) {
+	long vol = a->i;
+	
+	snd_mixer_handle_events(alsa.handle);
+	vol += volume_get();
+	volume_set(vol);
+}
+
+void alsa_mute_toggle(const Arg *a) {
+	snd_mixer_handle_events(alsa.handle);
+	mute_set(!mute_get());
 }

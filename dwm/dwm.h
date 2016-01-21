@@ -243,4 +243,7 @@ void indicator_logout_expose(Indicator *indicator, Window window);
 Bool indicator_logout_haswindow(Indicator *indicator, Window window);
 void indicator_logout_mouse(Indicator *indicator, XButtonPressedEvent *ev);
 
+void alsa_volume(const Arg *a);
+void alsa_mute_toggle(const Arg *a);
+
 #endif

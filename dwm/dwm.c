@@ -465,15 +465,21 @@ buttonpress(XEvent *e) {
 		/*else if(ev->x > selmon->ww - TEXTW(stext))
 			click = ClkStatusText;*/
 		else {
-			click = ClkWinTitle;
+			x = selmon->mx + selmon->mw;
 			for(in=indicator; in; in=in->next) {
-				if(ev->x>=in->x&&ev->x<in->x+in->width) {
+				if(!in->text[0])
+					continue;
+				if(in->x < x)
+					x = in->x;
+				if(ev->x >= in->x && ev->x < in->x + in->width) {
 					in->mouse(in, ev);
 					updatestatus();
 					click = ClkStatusText;
 					break;
 				}
 			}
+			if(ev->x < x)
+				click = ClkWinTitle;
 		}
 	}
 	else if((c = wintoclient(ev->window))) {
@@ -2631,8 +2637,8 @@ int
 main(int argc, char *argv[]) {
 	if(argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION", © 2006-2011 dwm engineers, see LICENSE for details\n");
-	else if(argc != 1)
-		die("usage: dwm [-v]\n");
+	else if((argc == 2 && !strcmp("-h", argv[1])) || argc > 2)
+		die("usage: dwm [-v][-h][-r]\n\t-r\tdo not run autostart file\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
 	if(!(dpy = XOpenDisplay(NULL)))
@@ -2640,7 +2646,8 @@ main(int argc, char *argv[]) {
 	checkotherwm();
 	setup();
 	scan();
-	autostart();
+	if(!(argc == 2 && !strcmp("-r", argv[1])))
+		autostart();
 	run();
 	cleanup();
 	XCloseDisplay(dpy);
@@ -2752,7 +2759,7 @@ char *get_dwm_path(){
  * https://sites.google.com/site/yjlnotes/notes/dwm
  */
 void self_restart(const Arg *arg) {
-	char *const argv[] = {exepath, NULL};
+	char *const argv[] = {exepath, "-r", NULL};
 
 	if(argv[0] == NULL){
 		return;
@@ -2780,5 +2787,6 @@ void indicator_add(int (*init)(Indicator *), void (*update)(Indicator *), void (
 		*i=ii;
 	} else {
 		fprintf(stderr, "Error: failed to add indicator");
+		free(ii);
 	}
 }
